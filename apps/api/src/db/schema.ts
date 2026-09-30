@@ -43,7 +43,7 @@ export const accounts = pgTable(
   (t) => [uniqueIndex('accounts_email_lower_idx').on(sql`lower(${t.email})`)],
 );
 
-/** Partner (ENT-PARTNER). Minimal columns the application flow reads for duplicate-tax-id checks. */
+/** Partner (ENT-PARTNER). Minimal columns for matching tax ids; nothing in the submit flow reads it yet (duplicates are accepted silently). */
 export const partners = pgTable(
   'partners',
   {
