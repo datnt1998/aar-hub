@@ -17,7 +17,7 @@ Monorepo pnpm workspace + Turborepo (`turbo.json`), Node ≥ 22, pnpm 10.
 
 ## Lệnh
 
-Chạy ở gốc repo. Các lệnh qua `turbo` có cache; thêm `--force` để bỏ cache.
+Chạy ở gốc repo. Các lệnh qua `turbo` có cache; bỏ cache bằng `--force` ngay sau tên lệnh (`pnpm test --force`, không dùng `pnpm test -- --force`).
 
 | Việc | Lệnh |
 |---|---|
