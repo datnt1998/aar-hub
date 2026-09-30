@@ -18,13 +18,13 @@ describe('GET /api/health', () => {
     await app.close();
   });
 
-  it('reports the API as up', async () => {
+  it('AC-HUB-INIT-01-01 returns ok and non-negative uptime in seconds', async () => {
     const res = await request(app.getHttpServer()).get('/api/health').expect(200);
     expect(res.body).toEqual({ status: 'ok', uptimeSeconds: expect.any(Number) });
     expect(res.body.uptimeSeconds).toBeGreaterThanOrEqual(0);
   });
 
-  it('is only served under the /api prefix', async () => {
+  it('AC-HUB-INIT-01-02 returns 404 without the /api prefix', async () => {
     await request(app.getHttpServer()).get('/health').expect(404);
   });
 });
