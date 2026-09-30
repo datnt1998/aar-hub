@@ -13,7 +13,7 @@
     "test": {},
     "e2e": {
       "cache": false,
-      "passThroughEnv": ["CI", "API_URL", "PLAYWRIGHT_*"]
+      "passThroughEnv": ["CI", "API_URL", "E2E_API_PORT", "E2E_WEB_PORT", "PLAYWRIGHT_*"]
     },
     "api#openapi": {
       "cache": false
