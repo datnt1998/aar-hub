@@ -42,9 +42,13 @@ Trước khi báo xong: `pnpm lint && pnpm typecheck && pnpm test && pnpm e2e &&
   - Câu hỏi chặn một phần việc: commit các AC không bị ảnh hưởng (kèm test), rồi báo `spec_gap` (Ops) hoặc hỏi người (chat).
   - Câu hỏi không chặn: làm xong, ghi câu hỏi vào `questions`.
 
-## Chưa có database
+## Database
 
-Repo chưa chọn database, ORM, auth hay hạ tầng deploy. Không tự thêm. Ticket cần lưu dữ liệu bền vững thì dừng: khi Ops gọi, báo `error` với `"error": "cần chọn database"`; khi chat, nói với người.
+PostgreSQL (bản mới nhất) qua Drizzle ORM (`drizzle-orm`, `pg`), do người chọn. Repo chưa chọn auth hay hạ tầng deploy. Không tự thêm. Ticket cần auth (nhận diện người đăng nhập) thì dừng phần đó: khi Ops gọi, báo `spec_gap` (hoặc `error` nếu không còn AC nào làm được); khi chat, nói với người.
+
+- Schema: `apps/api/src/db/schema.ts`. Đổi schema thì chạy `pnpm --filter api db:generate` và commit thư mục `apps/api/drizzle/` (migration SQL).
+- Áp migration: `pnpm --filter api build && DATABASE_URL=… pnpm --filter api db:migrate`. API kết nối qua `DATABASE_URL` (kết nối lười: không có DB thì `/api/health` và xuất OpenAPI vẫn chạy).
+- Test API dùng PGlite (PostgreSQL chạy trong tiến trình, áp đúng migration đã commit) qua `apps/api/test/support/test-app.ts`; không cần cài Postgres.
 
 ## Tài liệu interface của ticket BE
 
@@ -87,7 +91,7 @@ Ops (Hermes) gửi tin vào terminal Orca đang chạy agent chat của repo nà
    - `pr_opened`: branch, HEAD và PR đều thật: branch hiện tại, SHA đã push (`git rev-parse HEAD` bằng `headRefOid` của `gh pr view --json url,headRefOid`), URL working PR. Kèm thẻ `aar/1` `delivery` hợp lệ: `ac_covered` lấy từ `pnpm ac --json`; ticket BE có `handoff` (mục tài liệu interface). Câu hỏi không chặn đi kèm dưới dạng thẻ `question`.
    - `spec_gap`: kèm thẻ `question` cho từng câu hỏi; các AC không bị chặn đã commit và push.
    - `needs_input`: `message` là **nguyên văn** lượt hỏi cần người quyết định, đúng như sẽ nói với người khi chat. Ops chuyển nguyên văn lên Telegram. Sau đó chờ trong terminal.
-   - `error`: `summary` và `error` nêu lý do (đang ở `main`, "cần chọn database", lệnh kiểm đỏ không sửa được…).
+   - `error`: `summary` và `error` nêu lý do (đang ở `main`, lệnh kiểm đỏ không sửa được…).
 6. **Lượt sau.** Ops gửi câu trả lời của người hoặc việc tiếp theo vào cùng terminal Orca. Tiếp tục trong cùng phiên như chat và ghi lại result file theo tin mới.
 7. **Review độc lập.** Review luôn chạy bằng subagent `reviewer` hoặc session riêng theo mục Review PR, không dùng ngữ cảnh đã code.
 
@@ -96,7 +100,7 @@ Ops (Hermes) gửi tin vào terminal Orca đang chạy agent chat của repo nà
 - Làm trên branch hoặc worktree riêng, không commit hay push lên `main`. Merge do người duyệt (Đạt, gate G3 trên Telegram).
 - Conventional commits (`feat:`, `fix:`, `test:`, `docs:`, `chore:`…), không nhắc AI trong commit hay PR.
 - Không đọc repo khác (aar-ui, aar-docs, aar-ops). Mọi trao đổi qua thẻ `aar/1` do Ops chuyển.
-- Không đổi stack. Không chọn database, ORM, auth, hạ tầng deploy.
+- Không đổi stack. Không chọn auth, hạ tầng deploy.
 
 <!-- BEGIN:turborepo-agent-rules -->
 
