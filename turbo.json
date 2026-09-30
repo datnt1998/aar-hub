@@ -1,0 +1,32 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "//#lint:root": {},
+    "lint": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/eslint.config.js"]
+    },
+    "typecheck": {},
+    "test": {},
+    "e2e": {
+      "cache": false,
+      "passThroughEnv": ["CI", "API_URL", "E2E_API_PORT", "E2E_WEB_PORT", "PLAYWRIGHT_*"]
+    },
+    "api#openapi": {
+      "cache": false
+    },
+    "web#api:types": {
+      "dependsOn": ["api#openapi"],
+      "cache": false
+    },
+    "api#openapi:check": {
+      "cache": false
+    },
+    "web#api:types:check": {
+      "cache": false
+    }
+  }
+}
