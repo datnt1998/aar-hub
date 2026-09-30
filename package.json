@@ -1,0 +1,31 @@
+{
+  "name": "aar-hub",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "lint": "turbo run lint //#lint:root",
+    "lint:root": "eslint eslint.config.js scripts",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:api": "turbo run test --filter=api",
+    "test:web": "turbo run test --filter=web",
+    "e2e": "turbo run e2e",
+    "build": "turbo run build",
+    "openapi": "turbo run api:types --filter=web",
+    "openapi:check": "turbo run openapi:check api:types:check",
+    "ac": "node scripts/ac-tests.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.11.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.12.0",
+    "turbo": "^2.11.5",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.0"
+  }
+}
