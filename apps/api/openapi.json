@@ -21,6 +21,97 @@
           "health"
         ]
       }
+    },
+    "/api/partner-applications/attachments": {
+      "post": {
+        "description": "Bước trước khi nộp đơn. Dùng id trả về trong businessRegistrationAttachmentId / otherAttachmentIds. Không cần tài khoản.",
+        "operationId": "PartnerApplicationsController_uploadAttachment",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttachmentDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Thiếu file hoặc file rỗng"
+          },
+          "413": {
+            "description": "File lớn hơn 10485760 byte"
+          }
+        },
+        "summary": "Tải lên một file đính kèm",
+        "tags": [
+          "partner-applications"
+        ]
+      }
+    },
+    "/api/partner-applications/organization": {
+      "post": {
+        "description": "Không cần tài khoản. Thành công: đơn ở SUBMITTED; người nộp đơn nhận email xác nhận (và thông báo trong AarHub nếu email khớp một tài khoản); mọi admin nền tảng được báo. Trùng mã số thuế với đối tác hoặc đơn đang mở vẫn được nhận và không có cảnh báo nào trong phản hồi. Lỗi: không có đơn nào được tạo.",
+        "operationId": "PartnerApplicationsController_submitOrganization",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitOrganizationApplicationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerApplicationDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Thiếu hoặc sai thông tin bắt buộc; errors liệt kê từng trường.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationValidationErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Nộp đơn đăng ký đối tác hình thức tổ chức",
+        "tags": [
+          "partner-applications"
+        ]
+      }
     }
   },
   "info": {
@@ -52,6 +143,227 @@
         "required": [
           "status",
           "uptimeSeconds"
+        ]
+      },
+      "AttachmentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fileName": {
+            "type": "string",
+            "description": "Tên file gốc"
+          },
+          "contentType": {
+            "type": "string",
+            "description": "MIME type do client gửi lên"
+          },
+          "sizeBytes": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "id",
+          "fileName",
+          "contentType",
+          "sizeBytes"
+        ]
+      },
+      "PlannedArtistDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Tên nghệ sĩ dự kiến",
+            "example": "Nguyễn Văn A"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "SubmitOrganizationApplicationDto": {
+        "type": "object",
+        "properties": {
+          "contactName": {
+            "type": "string",
+            "description": "Họ tên người nộp đơn (người liên hệ)"
+          },
+          "contactEmail": {
+            "type": "string",
+            "description": "Email liên hệ của người nộp đơn",
+            "format": "email"
+          },
+          "legalName": {
+            "type": "string",
+            "description": "Tên pháp nhân"
+          },
+          "taxId": {
+            "type": "string",
+            "description": "Mã số thuế của pháp nhân"
+          },
+          "sellOnly": {
+            "type": "boolean",
+            "description": "Chọn \"chỉ bán hàng\": không cần khai báo nghệ sĩ dự kiến. Mặc định false.",
+            "default": false
+          },
+          "plannedArtists": {
+            "description": "Nghệ sĩ dự kiến. Bắt buộc ít nhất một nghệ sĩ khi sellOnly là false.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlannedArtistDto"
+            }
+          },
+          "businessRegistrationAttachmentId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Id file giấy đăng ký kinh doanh, lấy từ POST /api/partner-applications/attachments"
+          },
+          "otherAttachmentIds": {
+            "description": "Id các file hồ sơ khác (tùy chọn), lấy từ POST /api/partner-applications/attachments",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "contactName",
+          "contactEmail",
+          "legalName",
+          "taxId",
+          "businessRegistrationAttachmentId"
+        ]
+      },
+      "PartnerApplicationDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "ORGANIZATION"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "SUBMITTED"
+            ]
+          },
+          "submittedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "contactName": {
+            "type": "string"
+          },
+          "contactEmail": {
+            "type": "string",
+            "format": "email"
+          },
+          "legalName": {
+            "type": "string"
+          },
+          "taxId": {
+            "type": "string"
+          },
+          "sellOnly": {
+            "type": "boolean"
+          },
+          "plannedArtists": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlannedArtistDto"
+            }
+          },
+          "businessRegistration": {
+            "$ref": "#/components/schemas/AttachmentDto"
+          },
+          "otherAttachments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AttachmentDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "status",
+          "submittedAt",
+          "contactName",
+          "contactEmail",
+          "legalName",
+          "taxId",
+          "sellOnly",
+          "plannedArtists",
+          "businessRegistration",
+          "otherAttachments"
+        ]
+      },
+      "FieldErrorDto": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "enum": [
+              "contactName",
+              "contactEmail",
+              "legalName",
+              "taxId",
+              "sellOnly",
+              "plannedArtists",
+              "businessRegistrationAttachmentId",
+              "otherAttachmentIds"
+            ],
+            "description": "Trường thiếu hoặc không hợp lệ"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "REQUIRED",
+              "INVALID"
+            ],
+            "description": "REQUIRED: thiếu. INVALID: sai định dạng, hoặc file không tồn tại / đã gắn vào đơn khác."
+          }
+        },
+        "required": [
+          "field",
+          "reason"
+        ]
+      },
+      "ApplicationValidationErrorDto": {
+        "type": "object",
+        "properties": {
+          "statusCode": {
+            "type": "number",
+            "enum": [
+              400
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "errors": {
+            "description": "Mọi trường lỗi; không có đơn nào được tạo.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldErrorDto"
+            }
+          }
+        },
+        "required": [
+          "statusCode",
+          "message",
+          "errors"
         ]
       }
     }

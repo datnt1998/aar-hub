@@ -20,6 +20,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/partner-applications/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tải lên một file đính kèm
+         * @description Bước trước khi nộp đơn. Dùng id trả về trong businessRegistrationAttachmentId / otherAttachmentIds. Không cần tài khoản.
+         */
+        post: operations["PartnerApplicationsController_uploadAttachment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/partner-applications/organization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Nộp đơn đăng ký đối tác hình thức tổ chức
+         * @description Không cần tài khoản. Thành công: đơn ở SUBMITTED; người nộp đơn nhận email xác nhận (và thông báo trong AarHub nếu email khớp một tài khoản); mọi admin nền tảng được báo. Trùng mã số thuế với đối tác hoặc đơn đang mở vẫn được nhận và không có cảnh báo nào trong phản hồi. Lỗi: không có đơn nào được tạo.
+         */
+        post: operations["PartnerApplicationsController_submitOrganization"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -32,6 +72,87 @@ export interface components {
             status: "ok";
             /** @description Seconds since the API process started */
             uptimeSeconds: number;
+        };
+        AttachmentDto: {
+            /** Format: uuid */
+            id: string;
+            /** @description Tên file gốc */
+            fileName: string;
+            /** @description MIME type do client gửi lên */
+            contentType: string;
+            sizeBytes: number;
+        };
+        PlannedArtistDto: {
+            /**
+             * @description Tên nghệ sĩ dự kiến
+             * @example Nguyễn Văn A
+             */
+            name: string;
+        };
+        SubmitOrganizationApplicationDto: {
+            /** @description Họ tên người nộp đơn (người liên hệ) */
+            contactName: string;
+            /**
+             * Format: email
+             * @description Email liên hệ của người nộp đơn
+             */
+            contactEmail: string;
+            /** @description Tên pháp nhân */
+            legalName: string;
+            /** @description Mã số thuế của pháp nhân */
+            taxId: string;
+            /**
+             * @description Chọn "chỉ bán hàng": không cần khai báo nghệ sĩ dự kiến. Mặc định false.
+             * @default false
+             */
+            sellOnly: boolean;
+            /** @description Nghệ sĩ dự kiến. Bắt buộc ít nhất một nghệ sĩ khi sellOnly là false. */
+            plannedArtists?: components["schemas"]["PlannedArtistDto"][];
+            /**
+             * Format: uuid
+             * @description Id file giấy đăng ký kinh doanh, lấy từ POST /api/partner-applications/attachments
+             */
+            businessRegistrationAttachmentId: string;
+            /** @description Id các file hồ sơ khác (tùy chọn), lấy từ POST /api/partner-applications/attachments */
+            otherAttachmentIds?: string[];
+        };
+        PartnerApplicationDto: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            type: "ORGANIZATION";
+            /** @enum {string} */
+            status: "SUBMITTED";
+            /** Format: date-time */
+            submittedAt: string;
+            contactName: string;
+            /** Format: email */
+            contactEmail: string;
+            legalName: string;
+            taxId: string;
+            sellOnly: boolean;
+            plannedArtists: components["schemas"]["PlannedArtistDto"][];
+            businessRegistration: components["schemas"]["AttachmentDto"];
+            otherAttachments: components["schemas"]["AttachmentDto"][];
+        };
+        FieldErrorDto: {
+            /**
+             * @description Trường thiếu hoặc không hợp lệ
+             * @enum {string}
+             */
+            field: "contactName" | "contactEmail" | "legalName" | "taxId" | "sellOnly" | "plannedArtists" | "businessRegistrationAttachmentId" | "otherAttachmentIds";
+            /**
+             * @description REQUIRED: thiếu. INVALID: sai định dạng, hoặc file không tồn tại / đã gắn vào đơn khác.
+             * @enum {string}
+             */
+            reason: "REQUIRED" | "INVALID";
+        };
+        ApplicationValidationErrorDto: {
+            /** @enum {number} */
+            statusCode: 400;
+            message: string;
+            /** @description Mọi trường lỗi; không có đơn nào được tạo. */
+            errors: components["schemas"]["FieldErrorDto"][];
         };
     };
     responses: never;
@@ -57,6 +178,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthDto"];
+                };
+            };
+        };
+    };
+    PartnerApplicationsController_uploadAttachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachmentDto"];
+                };
+            };
+            /** @description Thiếu file hoặc file rỗng */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description File lớn hơn 10485760 byte */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PartnerApplicationsController_submitOrganization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitOrganizationApplicationDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerApplicationDto"];
+                };
+            };
+            /** @description Thiếu hoặc sai thông tin bắt buộc; errors liệt kê từng trường. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationValidationErrorDto"];
                 };
             };
         };
