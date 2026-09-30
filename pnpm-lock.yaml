@@ -85,8 +85,8 @@ importers:
   apps/web:
     dependencies:
       '@aar/ui':
-        specifier: github:datnt1998/aar-ui#564dd3e6ae70da94037030d791aa3abd6bf9092e
-        version: git+ssh://git@github.com/datnt1998/aar-ui.git#564dd3e6ae70da94037030d791aa3abd6bf9092e(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(tailwindcss@4.3.3)
+        specifier: github:datnt1998/aar-ui#69ebc2a44d5f2b1e426ae53faf4f8ac223539c35
+        version: git+ssh://git@github.com/datnt1998/aar-ui.git#69ebc2a44d5f2b1e426ae53faf4f8ac223539c35(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(tailwindcss@4.3.3)
       openapi-fetch:
         specifier: ^0.17.0
         version: 0.17.0
@@ -142,8 +142,8 @@ importers:
 
 packages:
 
-  '@aar/ui@git+ssh://git@github.com/datnt1998/aar-ui.git#564dd3e6ae70da94037030d791aa3abd6bf9092e':
-    resolution: {commit: 564dd3e6ae70da94037030d791aa3abd6bf9092e, repo: git@github.com:datnt1998/aar-ui.git, type: git}
+  '@aar/ui@git+ssh://git@github.com/datnt1998/aar-ui.git#69ebc2a44d5f2b1e426ae53faf4f8ac223539c35':
+    resolution: {commit: 69ebc2a44d5f2b1e426ae53faf4f8ac223539c35, repo: git@github.com:datnt1998/aar-ui.git, type: git}
     version: 1.0.0
     engines: {node: '>=22'}
     peerDependencies:
@@ -2703,8 +2703,9 @@ packages:
 
 snapshots:
 
-  '@aar/ui@git+ssh://git@github.com/datnt1998/aar-ui.git#564dd3e6ae70da94037030d791aa3abd6bf9092e(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(tailwindcss@4.3.3)':
+  '@aar/ui@git+ssh://git@github.com/datnt1998/aar-ui.git#69ebc2a44d5f2b1e426ae53faf4f8ac223539c35(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(tailwindcss@4.3.3)':
     dependencies:
+      '@internationalized/date': 3.12.4
       react: 19.3.0
       react-aria-components: 1.21.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       react-dom: 19.3.0(react@19.3.0)

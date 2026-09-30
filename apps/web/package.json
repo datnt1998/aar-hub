@@ -14,7 +14,7 @@
     "api:types:check": "openapi-typescript ../api/openapi.json -o src/api/schema.gen.ts --check"
   },
   "dependencies": {
-    "@aar/ui": "github:datnt1998/aar-ui#564dd3e6ae70da94037030d791aa3abd6bf9092e",
+    "@aar/ui": "github:datnt1998/aar-ui#69ebc2a44d5f2b1e426ae53faf4f8ac223539c35",
     "openapi-fetch": "^0.17.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
