@@ -1,6 +1,2 @@
 packages:
   - apps/*
-
-# Telemetry postinstall pulled in by @nestjs/swagger; not needed.
-ignoredBuiltDependencies:
-  - '@scarf/scarf'
