@@ -20,8 +20,6 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-        with:
-          aar-ui-token: ${{ secrets.AAR_UI_TOKEN }}
       - run: pnpm lint
 
   typecheck:
@@ -31,8 +29,6 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-        with:
-          aar-ui-token: ${{ secrets.AAR_UI_TOKEN }}
       - run: pnpm typecheck
 
   test-api:
@@ -42,8 +38,6 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-        with:
-          aar-ui-token: ${{ secrets.AAR_UI_TOKEN }}
       - run: pnpm test:api
 
   test-web:
@@ -53,8 +47,6 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-        with:
-          aar-ui-token: ${{ secrets.AAR_UI_TOKEN }}
       - run: pnpm test:web
 
   e2e:
@@ -64,8 +56,6 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-        with:
-          aar-ui-token: ${{ secrets.AAR_UI_TOKEN }}
       - run: pnpm --filter web exec playwright install --with-deps chromium
       - run: pnpm e2e
       - if: failure()
@@ -84,8 +74,6 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-        with:
-          aar-ui-token: ${{ secrets.AAR_UI_TOKEN }}
       - run: pnpm build
 
   openapi-check:
@@ -95,6 +83,4 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-        with:
-          aar-ui-token: ${{ secrets.AAR_UI_TOKEN }}
       - run: pnpm openapi:check

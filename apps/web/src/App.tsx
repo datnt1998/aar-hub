@@ -1,8 +1,13 @@
-import { Badge, Button, Card, Stack } from '@aar/ui';
 import { useEffect, useState } from 'react';
 import { api } from './api/client';
 
 type Health = { state: 'loading' } | { state: 'up'; uptimeSeconds: number } | { state: 'down' };
+
+const STATUS = {
+  loading: { label: 'Đang kiểm tra', className: 'bg-slate-100 text-slate-700' },
+  up: { label: 'API hoạt động', className: 'bg-emerald-100 text-emerald-800' },
+  down: { label: 'API không phản hồi', className: 'bg-red-100 text-red-800' },
+} as const;
 
 async function fetchHealth(): Promise<Health> {
   const { data } = await api.GET('/api/health').catch(() => ({ data: undefined }));
@@ -25,25 +30,25 @@ export function App() {
     void fetchHealth().then(setHealth);
   };
 
+  const status = STATUS[health.state];
+
   return (
-    <main className="min-h-screen bg-background-page p-8">
-      <Card
-        title="aar-hub"
-        headingLevel={2}
-        description="Trạng thái API"
-        className="mx-auto max-w-md"
-        footer={
-          <Button variant="secondary" isPending={health.state === 'loading'} onPress={recheck}>
-            Kiểm tra lại
-          </Button>
-        }
-      >
-        <Stack direction="row" gap={2} align="center">
-          {health.state === 'up' && <Badge tone="success">API hoạt động</Badge>}
-          {health.state === 'down' && <Badge tone="danger">API không phản hồi</Badge>}
-          {health.state === 'loading' && <Badge>Đang kiểm tra</Badge>}
-        </Stack>
-      </Card>
+    <main className="min-h-screen bg-slate-50 p-8">
+      <section className="mx-auto max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-slate-900">aar-hub</h2>
+        <p className="mt-1 text-sm text-slate-600">Trạng thái API</p>
+        <p className="mt-4">
+          <span className={`rounded-full px-2.5 py-0.5 text-sm font-medium ${status.className}`}>{status.label}</span>
+        </p>
+        <button
+          type="button"
+          className="mt-6 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-100 disabled:opacity-50"
+          disabled={health.state === 'loading'}
+          onClick={recheck}
+        >
+          Kiểm tra lại
+        </button>
+      </section>
     </main>
   );
 }

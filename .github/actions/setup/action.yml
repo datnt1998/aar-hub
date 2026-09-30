@@ -1,9 +1,5 @@
 name: Setup
-description: Node + pnpm, read access to the private @aar/ui git dependency, frozen install.
-inputs:
-  aar-ui-token:
-    description: Token with read access to datnt1998/aar-ui (secret AAR_UI_TOKEN)
-    required: true
+description: Node + pnpm, frozen install.
 runs:
   using: composite
   steps:
@@ -12,18 +8,6 @@ runs:
       with:
         node-version: 22
         cache: pnpm
-    - name: Grant git read access to aar-ui
-      shell: bash
-      env:
-        AAR_UI_TOKEN: ${{ inputs.aar-ui-token }}
-      run: |
-        if [ -z "$AAR_UI_TOKEN" ]; then
-          echo "::error::Secret AAR_UI_TOKEN is missing; add a token with read access to datnt1998/aar-ui (see AGENTS.md)."
-          exit 1
-        fi
-        # The lockfile pins @aar/ui as git@github.com:datnt1998/aar-ui.git; rewrite it to token-authenticated HTTPS.
-        git config --global url."https://x-access-token:${AAR_UI_TOKEN}@github.com/datnt1998/aar-ui".insteadOf "git@github.com:datnt1998/aar-ui"
-        git config --global --add url."https://x-access-token:${AAR_UI_TOKEN}@github.com/datnt1998/aar-ui".insteadOf "ssh://git@github.com/datnt1998/aar-ui"
     - name: Install
       shell: bash
       run: pnpm install --frozen-lockfile

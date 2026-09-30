@@ -10,7 +10,7 @@ Monorepo pnpm workspace + Turborepo (`turbo.json`), Node ≥ 22, pnpm 10.
 |---|---|
 | `apps/api` | NestJS 12 (ESM). Module theo tính năng trong `src/<feature>/`. Test: Vitest (mặc định của Nest 12), `src/**/*.spec.ts` và `test/**/*.e2e-spec.ts` |
 | `apps/api/openapi.json` | **Tài liệu interface** của API, sinh từ code |
-| `apps/web` | React 19 + Vite + Tailwind v4, giao diện dựng từ `@aar/ui`. Test: Vitest `src/**/*.test.tsx`, Playwright `e2e/*.spec.ts` |
+| `apps/web` | React 19 + Vite + Tailwind v4. Test: Vitest `src/**/*.test.tsx`, Playwright `e2e/*.spec.ts` |
 | `apps/web/src/api/client.ts` | Client có type gọi API (`openapi-fetch`) |
 | `apps/web/src/api/schema.gen.ts` | Type sinh từ `openapi.json`, không sửa tay |
 | `scripts/ac-tests.mjs` | Liệt kê test theo mã AC |
@@ -25,7 +25,7 @@ Chạy ở gốc repo. Các lệnh qua `turbo` có cache; bỏ cache bằng `--f
 | Lint | `pnpm lint` |
 | Typecheck | `pnpm typecheck` |
 | Test | `pnpm test` (riêng: `pnpm test:api`, `pnpm test:web`) |
-| E2E | `pnpm e2e` (lần đầu: `pnpm --filter web exec playwright install chromium`). Tự bật API cổng 3000 và web cổng 5173 |
+| E2E | `pnpm e2e` (lần đầu: `pnpm --filter web exec playwright install chromium`). Tự bật API cổng 3000 và web cổng 5173; cổng bận (worktree khác đang chạy) thì đổi: `E2E_API_PORT=3100 E2E_WEB_PORT=5273 pnpm e2e` |
 | Build | `pnpm build` |
 | Xuất tài liệu interface | `pnpm openapi` (ghi `apps/api/openapi.json` rồi sinh `apps/web/src/api/schema.gen.ts`) |
 | Kiểm tài liệu interface không lệch | `pnpm openapi:check` |
@@ -37,7 +37,7 @@ Trước khi báo xong: `pnpm lint && pnpm typecheck && pnpm test && pnpm e2e &&
 ## Ranh giới ticket
 
 - **BE:** chỉ hành vi nghiệp vụ: dữ liệu, chuyển trạng thái, quyền, luật nghiệp vụ, thông báo. Không làm màn hình. Cập nhật tài liệu interface (mục dưới).
-- **UI:** dựng màn hình từ `@aar/ui` trên interface của ticket BE cùng use case. Không đổi hành vi nghiệp vụ, không sửa `apps/api`. Màn hình lệch với interface thì đó là câu hỏi, không tự sửa.
+- **UI:** dựng màn hình trong `apps/web` trên interface của ticket BE cùng use case. Không đổi hành vi nghiệp vụ, không sửa `apps/api`. Màn hình lệch với interface thì đó là câu hỏi, không tự sửa.
 - Nghiệp vụ chỉ lấy từ ticket. Không đoán.
   - Câu hỏi chặn một phần việc: commit các AC không bị ảnh hưởng (kèm test), rồi báo `spec_gap` (Ops) hoặc hỏi người (chat).
   - Câu hỏi không chặn: làm xong, ghi câu hỏi vào `questions`.
@@ -58,15 +58,10 @@ Repo chưa chọn database, ORM, auth hay hạ tầng deploy. Không tự thêm.
 - Thêm endpoint: ticket BE thêm controller/DTO trong `apps/api`, chạy `pnpm openapi`. Ticket UI dùng ngay `api.<METHOD>('<path>')`, không viết `fetch` tay, không khai lại type.
 - Mọi route API nằm dưới tiền tố `/api` (`apps/api/src/app.setup.ts`).
 
-## `@aar/ui`
+## Giao diện
 
-- Cài bằng git ref theo commit trong `apps/web/package.json`: `"@aar/ui": "github:datnt1998/aar-ui#<commit>"`. Nâng: đổi commit rồi `pnpm install`, commit cả `pnpm-lock.yaml`.
-- CSS gốc `apps/web/src/index.css` import `tailwindcss` rồi `@aar/ui/styles.css`. Style dùng token ngữ nghĩa của gói (`bg-background-page`, `text-text-*`…).
-- UI chỉ dùng component của `@aar/ui`. Không tự viết component dùng chung trong hub. Class Tailwind trong app chỉ để bố cục trang.
-- Danh mục và cách dùng: xem gói đã cài (`apps/web/node_modules/@aar/ui/README.md`, type trong `dist/`) hoặc danh mục Ops gửi kèm tin nhắn. Không đọc mã nguồn repo aar-ui.
-- Thiếu component mà không ghép được từ component có sẵn: khi Ops gọi thì báo `needs_component` (tên, mục đích, API props/biến thể, vì sao không component nào dùng được); khi chat thì hỏi người.
-- Nhận thẻ `component_delivered` (có `ref` và `usage`): đổi commit của `@aar/ui` sang `ref`, `pnpm install`, dùng component theo `usage`.
-- aar-ui là repo private. Máy cần quyền đọc `datnt1998/aar-ui` qua git. CI dùng secret `AAR_UI_TOKEN`: người tạo fine-grained token chỉ quyền **Contents: Read** trên `datnt1998/aar-ui`, rồi thêm vào Settings → Secrets → Actions của aar-hub. Agent không tạo hay đọc token.
+- Màn hình viết bằng React + class Tailwind trong `apps/web/src`. Chưa có thư viện component dùng chung; không tự thêm thư viện UI.
+- CSS gốc là `apps/web/src/index.css` (`@import "tailwindcss"`).
 
 ## Test gắn mã AC
 
@@ -76,7 +71,7 @@ Repo chưa chọn database, ORM, auth hay hạ tầng deploy. Không tự thêm.
 
 ## Review PR
 
-- Review PR của agent hay của team theo luật trong file này: ranh giới ticket, `@aar/ui`, tài liệu interface, test gắn AC, luật database, lệnh kiểm xanh.
+- Review PR của agent hay của team theo luật trong file này: ranh giới ticket, tài liệu interface, test gắn AC, luật database, lệnh kiểm xanh.
 - PR ghi mã ticket thì đối chiếu từng AC của ticket với test mang mã đó (`pnpm ac`) và với code.
 - Review phải độc lập với phiên đã code: dùng subagent `reviewer` hoặc một session riêng không mang ngữ cảnh code. Không tự review trong cùng mạch đã viết code.
 
@@ -84,13 +79,12 @@ Repo chưa chọn database, ORM, auth hay hạ tầng deploy. Không tự thêm.
 
 Ops (Hermes) gửi tin vào terminal Orca đang chạy agent chat của repo này, trong một worktree trên branch của ticket. Worktree, terminal, timeout và dọn dẹp do Ops lo; repo không chứa lệnh `orca` hay code điều phối.
 
-1. **Đầu vào.** Tin của Ops ghi hai đường dẫn tuyệt đối nằm ngoài repo: **message file** (Markdown: nhiệm vụ, nội dung ticket, interface BE phụ thuộc, danh mục `@aar/ui`, luật, schema kết quả hợp lệ) và **result file**. Chỉ đọc repo hiện tại và các file Ops nêu tên trong tin (message file, file câu trả lời ở lượt sau). Không đọc repo khác hay file nào khác ngoài repo.
+1. **Đầu vào.** Tin của Ops ghi hai đường dẫn tuyệt đối nằm ngoài repo: **message file** (Markdown: nhiệm vụ, nội dung ticket, interface BE phụ thuộc, luật, schema kết quả hợp lệ) và **result file**. Chỉ đọc repo hiện tại và các file Ops nêu tên trong tin (message file, file câu trả lời ở lượt sau). Không đọc repo khác hay file nào khác ngoài repo.
 2. **Branch.** Kiểm `git symbolic-ref --short -q HEAD`. Đang ở `main` hoặc detached HEAD thì không sửa gì, ghi result `error` rồi dừng. Không đổi branch.
 3. **Làm việc.** Làm đúng nhiệm vụ trong message (làm ticket, làm tiếp, sửa theo review, sửa CI, review độc lập) như khi người chat, theo file này. Trước khi báo `pr_opened`: chạy đủ lệnh kiểm, review độc lập (mục Review PR) và sửa các lỗi chặn.
-4. **Git.** Chỉ khi báo `pr_opened` (hoặc `spec_gap` có AC đã làm): commit trên branch hiện tại, push branch đó, mở working PR vào `main` hoặc cập nhật PR đã có của branch (`gh pr view` / `gh pr create`). Không mở PR chỉ để báo câu hỏi hay thiếu component. Không approve, merge, tag, không push lên `main`.
-5. **Kết quả.** Ghi **đúng một** object JSON vào result file theo đúng một dạng message nêu, `status` là một trong `pr_opened`, `needs_component`, `spec_gap`, `needs_input`, `error`. Ghi **atomically**: viết file tạm cạnh result file (ví dụ `<result>.tmp`), kiểm JSON hợp lệ (`node -e 'JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))' <tmp>`), rồi `mv` đè lên result file. Không ghi từng phần, không ghi hai lần trong một lượt.
+4. **Git.** Chỉ khi báo `pr_opened` (hoặc `spec_gap` có AC đã làm): commit trên branch hiện tại, push branch đó, mở working PR vào `main` hoặc cập nhật PR đã có của branch (`gh pr view` / `gh pr create`). Không mở PR chỉ để báo câu hỏi. Không approve, merge, tag, không push lên `main`.
+5. **Kết quả.** Ghi **đúng một** object JSON vào result file theo đúng một dạng message nêu, `status` là một trong `pr_opened`, `spec_gap`, `needs_input`, `error`. Ghi **atomically**: viết file tạm cạnh result file (ví dụ `<result>.tmp`), kiểm JSON hợp lệ (`node -e 'JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))' <tmp>`), rồi `mv` đè lên result file. Không ghi từng phần, không ghi hai lần trong một lượt.
    - `pr_opened`: branch, HEAD và PR đều thật: branch hiện tại, SHA đã push (`git rev-parse HEAD` bằng `headRefOid` của `gh pr view --json url,headRefOid`), URL working PR. Kèm thẻ `aar/1` `delivery` hợp lệ: `ac_covered` lấy từ `pnpm ac --json`; ticket BE có `handoff` (mục tài liệu interface). Câu hỏi không chặn đi kèm dưới dạng thẻ `question`.
-   - `needs_component`: chỉ ticket UI, kèm thẻ `component_request` (tên, mục đích, API, lý do). Không commit.
    - `spec_gap`: kèm thẻ `question` cho từng câu hỏi; các AC không bị chặn đã commit và push.
    - `needs_input`: `message` là **nguyên văn** lượt hỏi cần người quyết định, đúng như sẽ nói với người khi chat. Ops chuyển nguyên văn lên Telegram. Sau đó chờ trong terminal.
    - `error`: `summary` và `error` nêu lý do (đang ở `main`, "cần chọn database", lệnh kiểm đỏ không sửa được…).
@@ -101,7 +95,7 @@ Ops (Hermes) gửi tin vào terminal Orca đang chạy agent chat của repo nà
 
 - Làm trên branch hoặc worktree riêng, không commit hay push lên `main`. Merge do người duyệt (Đạt, gate G3 trên Telegram).
 - Conventional commits (`feat:`, `fix:`, `test:`, `docs:`, `chore:`…), không nhắc AI trong commit hay PR.
-- Không đọc repo khác (aar-ui, aar-docs, aar-ops). Mọi trao đổi qua thẻ `aar/1` do Ops chuyển. `@aar/ui` chỉ cài và dùng.
+- Không đọc repo khác (aar-ui, aar-docs, aar-ops). Mọi trao đổi qua thẻ `aar/1` do Ops chuyển.
 - Không đổi stack. Không chọn database, ORM, auth, hạ tầng deploy.
 
 <!-- BEGIN:turborepo-agent-rules -->

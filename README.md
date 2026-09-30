@@ -1,6 +1,6 @@
 # aar-hub
 
-App sản phẩm của AAR: API NestJS (`apps/api`) và giao diện React (`apps/web`) dựng từ `@aar/ui`. Monorepo pnpm + Turborepo.
+App sản phẩm của AAR: API NestJS (`apps/api`) và giao diện React + Tailwind (`apps/web`). Monorepo pnpm + Turborepo.
 
 ```bash
 pnpm install
