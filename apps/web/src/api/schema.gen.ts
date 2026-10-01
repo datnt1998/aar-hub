@@ -51,7 +51,7 @@ export interface paths {
         put?: never;
         /**
          * Nộp đơn đăng ký đối tác hình thức tổ chức
-         * @description Không cần tài khoản. Thành công: đơn ở SUBMITTED; người nộp đơn nhận email xác nhận (và thông báo trong AarHub nếu email khớp một tài khoản); mọi admin nền tảng được báo. Trùng mã số thuế với đối tác hoặc đơn đang mở vẫn được nhận và không có cảnh báo nào trong phản hồi. Lỗi: không có đơn nào được tạo.
+         * @description Không cần tài khoản. Thành công: đơn ở SUBMITTED; email xác nhận gửi tới email liên hệ trong đơn; thông báo trong AarHub chỉ gửi tới tài khoản gắn với đơn (đơn gắn tài khoản khi có đăng nhập, chưa nối vào API); mọi admin nền tảng nhận email và thông báo trong AarHub. Trùng mã số thuế với đối tác hoặc đơn đang mở vẫn được nhận và không có cảnh báo nào trong phản hồi. Lỗi: không có đơn nào được tạo.
          */
         post: operations["PartnerApplicationsController_submitOrganization"];
         delete?: never;

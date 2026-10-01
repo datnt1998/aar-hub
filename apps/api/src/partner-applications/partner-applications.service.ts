@@ -55,7 +55,7 @@ export class PartnerApplicationsService {
   /**
    * Creates an organization application in SUBMITTED, or creates nothing. Duplicate tax ids are accepted silently.
    * `applicantAccountId` is the logged-in applicant's account: the application is bound to it and that account gets the
-   * in-app notification. The confirmation email always goes to the contact email in the application.
+   * in-app notification. The caller (the auth layer) guarantees it is an existing account id. The confirmation email always goes to the contact email in the application.
    */
   async submitOrganization(body: unknown, applicantAccountId?: string): Promise<PartnerApplicationDto> {
     const parsed = validateOrganizationApplication(body);

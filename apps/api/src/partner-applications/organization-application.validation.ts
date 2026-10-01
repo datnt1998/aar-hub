@@ -94,7 +94,7 @@ export function validateOrganizationApplication(body: unknown): ValidationResult
   }
   if (otherAttachmentIds.length > MAX_OTHER_ATTACHMENTS) fail('otherAttachmentIds', 'TOO_MANY');
   const allIds = [businessRegistrationAttachmentId, ...otherAttachmentIds].filter((id) => id !== '');
-  if (new Set(allIds.map((id) => id.toLowerCase())).size !== allIds.length) {
+  if (!errors.some((e) => e.field === 'otherAttachmentIds') && new Set(allIds.map((id) => id.toLowerCase())).size !== allIds.length) {
     fail('otherAttachmentIds', 'INVALID');
   }
 
