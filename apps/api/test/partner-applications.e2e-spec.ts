@@ -276,6 +276,40 @@ describe('partner applications (organization)', () => {
     });
   });
 
+  // The HTTP layer has no way to identify a logged-in applicant until the auth work lands, so these call the service
+  // with the account id the auth layer will supply.
+  describe('logged-in applicant', () => {
+    it('AC-PARTNER-ONBOARDING-01-06 application is bound to the account when the applicant keeps email A', async () => {
+      const [accountA] = await t.db.insert(accounts).values({ email: 'a@example.com' }).returning();
+      const result = await service().submitOrganization(await validBody({ contactEmail: 'a@example.com' }), accountA.id);
+      expect(result).toMatchObject({ status: 'SUBMITTED', contactEmail: 'a@example.com' });
+      const [row] = await t.db.select().from(partnerApplications).where(eq(partnerApplications.id, result.id));
+      expect(row.applicantAccountId).toBe(accountA.id);
+    });
+
+    it('AC-PARTNER-ONBOARDING-01-06 application is bound to the account when the applicant changes the contact email to B', async () => {
+      const [accountA] = await t.db.insert(accounts).values({ email: 'a@example.com' }).returning();
+      const result = await service().submitOrganization(await validBody({ contactEmail: 'b@example.com' }), accountA.id);
+      expect(result).toMatchObject({ status: 'SUBMITTED', contactEmail: 'b@example.com' });
+      const [row] = await t.db.select().from(partnerApplications).where(eq(partnerApplications.id, result.id));
+      expect(row.applicantAccountId).toBe(accountA.id);
+    });
+
+    it('AC-PARTNER-ONBOARDING-01-12 a contact email edited from A to B is accepted and stored as B', async () => {
+      const [accountA] = await t.db.insert(accounts).values({ email: 'a@example.com' }).returning();
+      const result = await service().submitOrganization(await validBody({ contactEmail: 'b@example.com' }), accountA.id);
+      const [row] = await t.db.select().from(partnerApplications).where(eq(partnerApplications.id, result.id));
+      expect(row.contactEmail).toBe('b@example.com');
+      expect(row.contactEmail).not.toBe(accountA.email);
+    });
+
+    it('an anonymous application is not bound to any account', async () => {
+      const res = await submit(await validBody()).expect(201);
+      const [row] = await t.db.select().from(partnerApplications).where(eq(partnerApplications.id, res.body.id));
+      expect(row.applicantAccountId).toBeNull();
+    });
+  });
+
   describe('duplicate tax id', () => {
     it('AC-PARTNER-ONBOARDING-01-11 applicant sees no duplicate warning for an ACTIVE partner with the same tax id', async () => {
       await t.db.insert(partners).values({ legalName: 'Đối tác đang hoạt động', taxId: '0312345678', status: 'ACTIVE' });
