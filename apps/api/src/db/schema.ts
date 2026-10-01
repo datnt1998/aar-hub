@@ -65,6 +65,8 @@ export const partnerApplications = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     type: text('type').$type<ApplicationType>().notNull(),
     status: text('status').$type<ApplicationStatus>().notNull(),
+    /** Account the applicant was logged in with; null for an anonymous applicant. */
+    applicantAccountId: uuid('applicant_account_id').references(() => accounts.id),
     contactName: text('contact_name').notNull(),
     contactEmail: text('contact_email').notNull(),
     legalName: text('legal_name').notNull(),

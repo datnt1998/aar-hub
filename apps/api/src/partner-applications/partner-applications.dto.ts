@@ -13,7 +13,7 @@ export const FIELD_ERROR_FIELDS = [
 ] as const;
 export type FieldErrorField = (typeof FIELD_ERROR_FIELDS)[number];
 
-export const FIELD_ERROR_REASONS = ['REQUIRED', 'INVALID'] as const;
+export const FIELD_ERROR_REASONS = ['REQUIRED', 'INVALID', 'TOO_MANY'] as const;
 export type FieldErrorReason = (typeof FIELD_ERROR_REASONS)[number];
 
 export class PlannedArtistDto {
@@ -55,7 +55,7 @@ export class SubmitOrganizationApplicationDto {
   @ApiPropertyOptional({
     type: [String],
     format: 'uuid',
-    description: 'Id các file hồ sơ khác (tùy chọn), lấy từ POST /api/partner-applications/attachments',
+    description: 'Id các file hồ sơ khác (tùy chọn), tối đa 2 (cả đơn tối đa 3 file, tính cả giấy đăng ký kinh doanh). Lấy từ POST /api/partner-applications/attachments',
   })
   otherAttachmentIds?: string[];
 }
@@ -118,7 +118,7 @@ export class FieldErrorDto {
 
   @ApiProperty({
     enum: FIELD_ERROR_REASONS,
-    description: 'REQUIRED: thiếu. INVALID: sai định dạng, hoặc file không tồn tại / đã gắn vào đơn khác.',
+    description: 'REQUIRED: thiếu. INVALID: sai định dạng, hoặc file không tồn tại / đã gắn vào đơn khác. TOO_MANY: quá 3 file (tính cả giấy đăng ký kinh doanh).',
   })
   reason: FieldErrorReason;
 }

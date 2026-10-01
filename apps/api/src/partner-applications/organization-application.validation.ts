@@ -16,6 +16,9 @@ export type ValidationResult =
   | { ok: true; value: OrganizationApplicationInput }
   | { ok: false; errors: FieldErrorDto[] };
 
+/** At most 3 files per application, including the business registration (ticket main flow, step 2). */
+const MAX_OTHER_ATTACHMENTS = 2;
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -89,6 +92,7 @@ export function validateOrganizationApplication(body: unknown): ValidationResult
       otherAttachmentIds.push(...(rawOthers as string[]));
     }
   }
+  if (otherAttachmentIds.length > MAX_OTHER_ATTACHMENTS) fail('otherAttachmentIds', 'TOO_MANY');
   const allIds = [businessRegistrationAttachmentId, ...otherAttachmentIds].filter((id) => id !== '');
   if (new Set(allIds.map((id) => id.toLowerCase())).size !== allIds.length) {
     fail('otherAttachmentIds', 'INVALID');

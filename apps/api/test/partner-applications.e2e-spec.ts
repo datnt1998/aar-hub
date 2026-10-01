@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import request from 'supertest';
 import { accounts, attachments, emailOutbox, notifications, partnerApplications, partners } from '../src/db/schema.js';
+import { PartnerApplicationsService } from '../src/partner-applications/partner-applications.service.js';
 import { createTestApp, type TestApp } from './support/test-app.js';
 
 describe('partner applications (organization)', () => {
@@ -17,6 +18,7 @@ describe('partner applications (organization)', () => {
   });
 
   const http = () => request(t.app.getHttpServer());
+  const service = () => t.app.get(PartnerApplicationsService);
 
   async function upload(fileName = 'gpkd.pdf'): Promise<string> {
     const res = await http()
@@ -167,6 +169,24 @@ describe('partner applications (organization)', () => {
       const [row] = await t.db.select().from(attachments).where(eq(attachments.id, br));
       expect(row.applicationId).toBeNull();
     });
+
+    it('three files in total (business registration plus two others) are accepted', async () => {
+      const others = [await upload('a.pdf'), await upload('b.pdf')];
+      const res = await submit(await validBody({ otherAttachmentIds: others })).expect(201);
+      expect(res.body.otherAttachments).toHaveLength(2);
+    });
+
+    it('a fourth file is refused, creates no application and leaves every upload unattached', async () => {
+      const br = await upload();
+      const others = [await upload('a.pdf'), await upload('b.pdf'), await upload('c.pdf')];
+      const res = await submit(
+        await validBody({ businessRegistrationAttachmentId: br, otherAttachmentIds: others }),
+      ).expect(400);
+      expect(res.body.errors).toEqual([{ field: 'otherAttachmentIds', reason: 'TOO_MANY' }]);
+      expect(await countApplications()).toBe(0);
+      const rows = await t.db.select().from(attachments);
+      expect(rows.every((r) => r.applicationId === null)).toBe(true);
+    });
   });
 
   describe('notifications', () => {
@@ -183,16 +203,46 @@ describe('partner applications (organization)', () => {
       ]);
     });
 
-    it('AC-PARTNER-ONBOARDING-01-09 applicant with an AarHub account also gets an in-app notification', async () => {
-      const [account] = await t.db.insert(accounts).values({ email: 'Bich@Example.com' }).returning();
-      const res = await submit(await validBody()).expect(201);
-      const notices = await t.db.select().from(notifications).where(eq(notifications.accountId, account.id));
+    it('AC-PARTNER-ONBOARDING-01-09 account-bound application: email goes to the contact email B, in-app notification to the account with email A', async () => {
+      const [accountA, accountOfB] = await t.db
+        .insert(accounts)
+        .values([{ email: 'a@example.com' }, { email: 'b@example.com' }])
+        .returning();
+      const result = await service().submitOrganization(await validBody({ contactEmail: 'b@example.com' }), accountA.id);
+
+      const [row] = await t.db.select().from(partnerApplications).where(eq(partnerApplications.id, result.id));
+      expect(row.applicantAccountId).toBe(accountA.id);
+      const mails = await t.db.select().from(emailOutbox);
+      expect(mails).toEqual([expect.objectContaining({ toEmail: 'b@example.com', kind: 'APPLICATION_RECEIVED' })]);
+      const notices = await t.db.select().from(notifications);
       expect(notices).toEqual([
         expect.objectContaining({
+          accountId: accountA.id,
           kind: 'APPLICATION_RECEIVED',
           message: 'Đơn tổ chức đã được nhận',
-          applicationId: res.body.id,
+          applicationId: result.id,
         }),
+      ]);
+      expect(notices.some((n) => n.accountId === accountOfB.id)).toBe(false);
+    });
+
+    it('AC-PARTNER-ONBOARDING-01-09 account-bound application that keeps email A gets the email and the in-app notification', async () => {
+      const [accountA] = await t.db.insert(accounts).values({ email: 'a@example.com' }).returning();
+      await service().submitOrganization(await validBody({ contactEmail: 'a@example.com' }), accountA.id);
+      expect((await t.db.select().from(emailOutbox)).map((m) => m.toEmail)).toEqual(['a@example.com']);
+      expect((await t.db.select().from(notifications)).map((n) => n.accountId)).toEqual([accountA.id]);
+    });
+
+    it('AC-PARTNER-ONBOARDING-01-10 applicant who is also an admin gets both the received and the new-application notifications', async () => {
+      const [admin] = await t.db.insert(accounts).values({ email: 'admin@aar.vn', isPlatformAdmin: true }).returning();
+      await service().submitOrganization(await validBody({ contactEmail: 'admin@aar.vn' }), admin.id);
+      expect((await t.db.select().from(notifications)).map((n) => n.kind).sort()).toEqual([
+        'APPLICATION_NEW_FOR_ADMIN',
+        'APPLICATION_RECEIVED',
+      ]);
+      expect((await t.db.select().from(emailOutbox)).map((m) => m.kind).sort()).toEqual([
+        'APPLICATION_NEW_FOR_ADMIN',
+        'APPLICATION_RECEIVED',
       ]);
     });
 

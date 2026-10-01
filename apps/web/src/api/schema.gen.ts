@@ -113,7 +113,7 @@ export interface components {
              * @description Id file giấy đăng ký kinh doanh, lấy từ POST /api/partner-applications/attachments
              */
             businessRegistrationAttachmentId: string;
-            /** @description Id các file hồ sơ khác (tùy chọn), lấy từ POST /api/partner-applications/attachments */
+            /** @description Id các file hồ sơ khác (tùy chọn), tối đa 2 (cả đơn tối đa 3 file, tính cả giấy đăng ký kinh doanh). Lấy từ POST /api/partner-applications/attachments */
             otherAttachmentIds?: string[];
         };
         PartnerApplicationDto: {
@@ -142,10 +142,10 @@ export interface components {
              */
             field: "contactName" | "contactEmail" | "legalName" | "taxId" | "sellOnly" | "plannedArtists" | "businessRegistrationAttachmentId" | "otherAttachmentIds";
             /**
-             * @description REQUIRED: thiếu. INVALID: sai định dạng, hoặc file không tồn tại / đã gắn vào đơn khác.
+             * @description REQUIRED: thiếu. INVALID: sai định dạng, hoặc file không tồn tại / đã gắn vào đơn khác. TOO_MANY: quá 3 file (tính cả giấy đăng ký kinh doanh).
              * @enum {string}
              */
-            reason: "REQUIRED" | "INVALID";
+            reason: "REQUIRED" | "INVALID" | "TOO_MANY";
         };
         ApplicationValidationErrorDto: {
             /** @enum {number} */

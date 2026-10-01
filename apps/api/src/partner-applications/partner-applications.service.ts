@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { DB, type AppDb } from '../db/db.js';
 import {
   accounts,
@@ -52,8 +52,12 @@ export class PartnerApplicationsService {
     return row;
   }
 
-  /** Creates an organization application in SUBMITTED, or creates nothing. Duplicate tax ids are accepted silently. */
-  async submitOrganization(body: unknown): Promise<PartnerApplicationDto> {
+  /**
+   * Creates an organization application in SUBMITTED, or creates nothing. Duplicate tax ids are accepted silently.
+   * `applicantAccountId` is the logged-in applicant's account: the application is bound to it and that account gets the
+   * in-app notification. The confirmation email always goes to the contact email in the application.
+   */
+  async submitOrganization(body: unknown, applicantAccountId?: string): Promise<PartnerApplicationDto> {
     const parsed = validateOrganizationApplication(body);
     if (!parsed.ok) throw validationError(parsed.errors, 'Application is invalid');
     const input = parsed.value;
@@ -64,6 +68,7 @@ export class PartnerApplicationsService {
         .values({
           type: 'ORGANIZATION',
           status: 'SUBMITTED',
+          applicantAccountId: applicantAccountId ?? null,
           contactName: input.contactName,
           contactEmail: input.contactEmail,
           legalName: input.legalName,
@@ -102,17 +107,15 @@ export class PartnerApplicationsService {
         throw validationError([{ field: 'otherAttachmentIds', reason: 'INVALID' }], 'Application is invalid');
       }
 
-      const applicantAccounts = await tx
-        .select({ id: accounts.id })
-        .from(accounts)
-        .where(sql`lower(${accounts.email}) = lower(${input.contactEmail})`);
       const admins = await tx
         .select({ id: accounts.id, email: accounts.email })
         .from(accounts)
         .where(eq(accounts.isPlatformAdmin, true));
 
       const inApp: { accountId: string; kind: NotificationKind; message: string }[] = [
-        ...applicantAccounts.map((a) => ({ accountId: a.id, kind: 'APPLICATION_RECEIVED' as const, message: MESSAGE_RECEIVED })),
+        ...(applicantAccountId
+          ? [{ accountId: applicantAccountId, kind: 'APPLICATION_RECEIVED' as const, message: MESSAGE_RECEIVED }]
+          : []),
         ...admins.map((a) => ({ accountId: a.id, kind: 'APPLICATION_NEW_FOR_ADMIN' as const, message: MESSAGE_NEW_FOR_ADMIN })),
       ];
       if (inApp.length > 0) {
