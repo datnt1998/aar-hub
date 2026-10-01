@@ -203,7 +203,7 @@ describe('partner applications (organization)', () => {
       ]);
     });
 
-    it('AC-PARTNER-ONBOARDING-01-09 account-bound application: email goes to the contact email B, in-app notification to the account with email A', async () => {
+    it('AC-PARTNER-ONBOARDING-01-09 (service level, no API login yet) account-bound application: email goes to the contact email B, in-app notification to the account with email A', async () => {
       const [accountA, accountOfB] = await t.db
         .insert(accounts)
         .values([{ email: 'a@example.com' }, { email: 'b@example.com' }])
@@ -226,14 +226,14 @@ describe('partner applications (organization)', () => {
       expect(notices.some((n) => n.accountId === accountOfB.id)).toBe(false);
     });
 
-    it('AC-PARTNER-ONBOARDING-01-09 account-bound application that keeps email A gets the email and the in-app notification', async () => {
+    it('AC-PARTNER-ONBOARDING-01-09 (service level, no API login yet) account-bound application that keeps email A gets the email and the in-app notification', async () => {
       const [accountA] = await t.db.insert(accounts).values({ email: 'a@example.com' }).returning();
       await service().submitOrganization(await validBody({ contactEmail: 'a@example.com' }), accountA.id);
       expect((await t.db.select().from(emailOutbox)).map((m) => m.toEmail)).toEqual(['a@example.com']);
       expect((await t.db.select().from(notifications)).map((n) => n.accountId)).toEqual([accountA.id]);
     });
 
-    it('AC-PARTNER-ONBOARDING-01-10 applicant who is also an admin gets both the received and the new-application notifications', async () => {
+    it('AC-PARTNER-ONBOARDING-01-10 (service level, no API login yet) applicant who is also an admin gets both the received and the new-application notifications', async () => {
       const [admin] = await t.db.insert(accounts).values({ email: 'admin@aar.vn', isPlatformAdmin: true }).returning();
       await service().submitOrganization(await validBody({ contactEmail: 'admin@aar.vn' }), admin.id);
       expect((await t.db.select().from(notifications)).map((n) => n.kind).sort()).toEqual([
@@ -279,7 +279,7 @@ describe('partner applications (organization)', () => {
   // The HTTP layer has no way to identify a logged-in applicant until the auth work lands, so these call the service
   // with the account id the auth layer will supply.
   describe('logged-in applicant', () => {
-    it('AC-PARTNER-ONBOARDING-01-06 application is bound to the account when the applicant keeps email A', async () => {
+    it('AC-PARTNER-ONBOARDING-01-06 (service level, no API login yet) application is bound to the account when the applicant keeps email A', async () => {
       const [accountA] = await t.db.insert(accounts).values({ email: 'a@example.com' }).returning();
       const result = await service().submitOrganization(await validBody({ contactEmail: 'a@example.com' }), accountA.id);
       expect(result).toMatchObject({ status: 'SUBMITTED', contactEmail: 'a@example.com' });
@@ -287,7 +287,7 @@ describe('partner applications (organization)', () => {
       expect(row.applicantAccountId).toBe(accountA.id);
     });
 
-    it('AC-PARTNER-ONBOARDING-01-06 application is bound to the account when the applicant changes the contact email to B', async () => {
+    it('AC-PARTNER-ONBOARDING-01-06 (service level, no API login yet) application is bound to the account when the applicant changes the contact email to B', async () => {
       const [accountA] = await t.db.insert(accounts).values({ email: 'a@example.com' }).returning();
       const result = await service().submitOrganization(await validBody({ contactEmail: 'b@example.com' }), accountA.id);
       expect(result).toMatchObject({ status: 'SUBMITTED', contactEmail: 'b@example.com' });
@@ -295,7 +295,7 @@ describe('partner applications (organization)', () => {
       expect(row.applicantAccountId).toBe(accountA.id);
     });
 
-    it('AC-PARTNER-ONBOARDING-01-12 a contact email edited from A to B is accepted and stored as B', async () => {
+    it('AC-PARTNER-ONBOARDING-01-12 (service level, no API login yet) a contact email edited from A to B is accepted and stored as B', async () => {
       const [accountA] = await t.db.insert(accounts).values({ email: 'a@example.com' }).returning();
       const result = await service().submitOrganization(await validBody({ contactEmail: 'b@example.com' }), accountA.id);
       const [row] = await t.db.select().from(partnerApplications).where(eq(partnerApplications.id, result.id));
@@ -348,6 +348,22 @@ describe('partner applications (organization)', () => {
         .attach('file', Buffer.alloc(0), { filename: 'rong.pdf' })
         .expect(400);
       await http().post('/api/partner-applications/attachments').expect(400);
+    });
+
+    it('accepts a file of exactly 10 MB', async () => {
+      const res = await http()
+        .post('/api/partner-applications/attachments')
+        .attach('file', Buffer.alloc(10 * 1024 * 1024, 1), { filename: 'bang-10mb.pdf', contentType: 'application/pdf' })
+        .expect(201);
+      expect(res.body.sizeBytes).toBe(10 * 1024 * 1024);
+    });
+
+    it('rejects a file one byte over 10 MB with 413 and stores nothing', async () => {
+      await http()
+        .post('/api/partner-applications/attachments')
+        .attach('file', Buffer.alloc(10 * 1024 * 1024 + 1, 1), { filename: 'qua-10mb.pdf', contentType: 'application/pdf' })
+        .expect(413);
+      expect(await t.db.select().from(attachments)).toHaveLength(0);
     });
   });
 });
