@@ -60,6 +60,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/partners/duplicate-checks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Kiểm trùng pháp nhân theo thông tin định danh
+         * @description Gọi ngay khi admin nhập xong mã số thuế (tổ chức) hoặc số CCCD (cá nhân) trên màn tạo đối tác trực tiếp. Chỉ kiểm, không lưu gì: không tạo đối tác, không gửi lời mời Owner. Hủy tạo là không gọi bước tạo đối tác, không cần gọi API nào.
+         */
+        post: operations["Partners_checkDuplicates"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/partners/direct-creation-checks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Kiểm toàn bộ dữ liệu màn tạo đối tác trực tiếp
+         * @description Kiểm mọi trường bắt buộc theo hình thức và trả cảnh báo trùng pháp nhân. Thành công nghĩa là dữ liệu đủ điều kiện; canConfirm cho biết có được xác nhận tạo không. Chỉ kiểm, không lưu gì: không tạo đối tác, không gửi lời mời Owner. Hủy tạo là không gọi bước tạo đối tác, không cần gọi API nào.
+         */
+        post: operations["Partners_checkDirectCreation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -139,6 +179,101 @@ export interface components {
             taxCode: string;
             salesOnly: boolean;
             declaredArtists: string[];
+        };
+        /** @description Thông tin định danh: "tổ chức" kèm taxCode, hoặc "cá nhân" kèm citizenId. */
+        PartnerIdentity: components["schemas"]["OrganizationIdentity"] | components["schemas"]["IndividualIdentity"];
+        OrganizationIdentity: {
+            /**
+             * @description Hình thức pháp nhân: tổ chức
+             * @enum {string}
+             */
+            legalForm: "tổ chức";
+            /** @description Mã số thuế, bắt buộc với tổ chức: đúng 10 hoặc 13 chữ số, không gạch nối, không dấu cách. Khoảng trắng hai đầu được bỏ trước khi kiểm */
+            taxCode: string;
+        };
+        IndividualIdentity: {
+            /**
+             * @description Hình thức pháp nhân: cá nhân
+             * @enum {string}
+             */
+            legalForm: "cá nhân";
+            /** @description Số CCCD, bắt buộc với cá nhân: đúng 12 chữ số. Khoảng trắng hai đầu được bỏ trước khi kiểm */
+            citizenId: string;
+        };
+        /** @description Cảnh báo trùng pháp nhân (BR-PARTNER-ONBOARDING-019). Hai danh sách rỗng: không trùng. */
+        PartnerDuplicateCheck: {
+            /** @description Mọi đối tác có cùng mã số thuế hoặc số CCCD, gồm cả đối tác TERMINATED (để cảnh báo ghi rõ trạng thái cũ) */
+            partners: components["schemas"]["DuplicatePartner"][];
+            /** @description Đơn đang mở (SUBMITTED, UNDER_REVIEW, NEEDS_INFO) có cùng mã số thuế hoặc số CCCD */
+            applications: components["schemas"]["DuplicateApplication"][];
+            /** @description false khi trùng đối tác chưa chấm dứt hoặc đơn đang mở: không được xác nhận tạo, admin chỉ có thể hủy. true khi không trùng hoặc chỉ trùng đối tác TERMINATED */
+            canConfirm: boolean;
+        };
+        DuplicatePartner: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * @description Trạng thái hiện tại của đối tác trùng
+             * @enum {string}
+             */
+            status: "PENDING_ACTIVATION" | "ACTIVE" | "SUSPENDED" | "TERMINATED";
+        };
+        DuplicateApplication: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * @description Trạng thái của đơn đang mở trùng
+             * @enum {string}
+             */
+            status: "SUBMITTED" | "UNDER_REVIEW" | "NEEDS_INFO";
+        };
+        /** @description Dữ liệu màn tạo đối tác trực tiếp: tổ chức kèm taxCode, cá nhân kèm citizenId; các trường còn lại như nhau. */
+        DirectPartnerDraft: components["schemas"]["OrganizationPartnerDraft"] | components["schemas"]["IndividualPartnerDraft"];
+        OrganizationPartnerDraft: {
+            /**
+             * @description Hình thức pháp nhân: tổ chức
+             * @enum {string}
+             */
+            legalForm: "tổ chức";
+            /** @description Mã số thuế, bắt buộc với tổ chức: đúng 10 hoặc 13 chữ số, không gạch nối, không dấu cách. Khoảng trắng hai đầu được bỏ trước khi kiểm */
+            taxCode: string;
+            /** @description Tên pháp nhân, 1–255 ký tự, không chỉ gồm khoảng trắng. Khoảng trắng hai đầu được bỏ trước khi kiểm */
+            legalName: string;
+            /** @description Số hợp đồng hợp tác, 1–255 ký tự, không chỉ gồm khoảng trắng. Khoảng trắng hai đầu được bỏ trước khi kiểm */
+            contractNumber: string;
+            /**
+             * Format: date
+             * @description Ngày hợp đồng hợp tác, dạng YYYY-MM-DD, không muộn hơn hôm nay theo giờ Việt Nam (muộn hơn: lỗi 422 PARTNER_CONTRACT_DATE_IN_FUTURE)
+             */
+            contractDate: string;
+            /**
+             * Format: email
+             * @description Email người nhận lời mời Owner, tối đa 254 ký tự. Khoảng trắng hai đầu được bỏ trước khi kiểm. Đúng một dấu @, có ít nhất một ký tự trước @, phần sau @ có dấu chấm nhưng không bắt đầu và không kết thúc bằng dấu chấm, không có khoảng trắng; so khớp không phân biệt hoa thường
+             */
+            invitedEmail: string;
+        };
+        IndividualPartnerDraft: {
+            /**
+             * @description Hình thức pháp nhân: cá nhân
+             * @enum {string}
+             */
+            legalForm: "cá nhân";
+            /** @description Số CCCD, bắt buộc với cá nhân: đúng 12 chữ số. Khoảng trắng hai đầu được bỏ trước khi kiểm */
+            citizenId: string;
+            /** @description Tên pháp nhân, 1–255 ký tự, không chỉ gồm khoảng trắng. Khoảng trắng hai đầu được bỏ trước khi kiểm */
+            legalName: string;
+            /** @description Số hợp đồng hợp tác, 1–255 ký tự, không chỉ gồm khoảng trắng. Khoảng trắng hai đầu được bỏ trước khi kiểm */
+            contractNumber: string;
+            /**
+             * Format: date
+             * @description Ngày hợp đồng hợp tác, dạng YYYY-MM-DD, không muộn hơn hôm nay theo giờ Việt Nam (muộn hơn: lỗi 422 PARTNER_CONTRACT_DATE_IN_FUTURE)
+             */
+            contractDate: string;
+            /**
+             * Format: email
+             * @description Email người nhận lời mời Owner, tối đa 254 ký tự. Khoảng trắng hai đầu được bỏ trước khi kiểm. Đúng một dấu @, có ít nhất một ký tự trước @, phần sau @ có dấu chấm nhưng không bắt đầu và không kết thúc bằng dấu chấm, không có khoảng trắng; so khớp không phân biệt hoa thường
+             */
+            invitedEmail: string;
         };
         /** @description Error response (RFC 9457 Problem Details) with a required `code` */
         Problem: {
@@ -297,6 +432,82 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"] & {
                         /** @enum {string} */
                         code: "PARTNER_APPLICATION_BUSINESS_REGISTRATION_INVALID" | "PARTNER_APPLICATION_OTHER_DOCUMENTS_INVALID";
+                    };
+                };
+            };
+            /** @description Error (Problem Details) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    Partners_checkDuplicates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PartnerIdentity"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerDuplicateCheck"];
+                };
+            };
+            /** @description Error (Problem Details) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    Partners_checkDirectCreation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DirectPartnerDraft"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerDuplicateCheck"];
+                };
+            };
+            /** @description PARTNER_CONTRACT_DATE_IN_FUTURE */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"] & {
+                        /** @enum {string} */
+                        code: "PARTNER_CONTRACT_DATE_IN_FUTURE";
                     };
                 };
             };

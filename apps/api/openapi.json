@@ -202,6 +202,120 @@
           "partner-applications"
         ]
       }
+    },
+    "/api/partners/duplicate-checks": {
+      "post": {
+        "description": "Gọi ngay khi admin nhập xong mã số thuế (tổ chức) hoặc số CCCD (cá nhân) trên màn tạo đối tác trực tiếp. Chỉ kiểm, không lưu gì: không tạo đối tác, không gửi lời mời Owner. Hủy tạo là không gọi bước tạo đối tác, không cần gọi API nào.",
+        "operationId": "Partners_checkDuplicates",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartnerIdentity"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerDuplicateCheck"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error (Problem Details)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Kiểm trùng pháp nhân theo thông tin định danh",
+        "tags": [
+          "partners"
+        ]
+      }
+    },
+    "/api/partners/direct-creation-checks": {
+      "post": {
+        "description": "Kiểm mọi trường bắt buộc theo hình thức và trả cảnh báo trùng pháp nhân. Thành công nghĩa là dữ liệu đủ điều kiện; canConfirm cho biết có được xác nhận tạo không. Chỉ kiểm, không lưu gì: không tạo đối tác, không gửi lời mời Owner. Hủy tạo là không gọi bước tạo đối tác, không cần gọi API nào.",
+        "operationId": "Partners_checkDirectCreation",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectPartnerDraft"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerDuplicateCheck"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "PARTNER_CONTRACT_DATE_IN_FUTURE",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "code"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "PARTNER_CONTRACT_DATE_IN_FUTURE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error (Problem Details)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Kiểm toàn bộ dữ liệu màn tạo đối tác trực tiếp",
+        "tags": [
+          "partners"
+        ]
+      }
     }
   },
   "info": {
@@ -417,6 +531,261 @@
           "taxCode",
           "salesOnly",
           "declaredArtists"
+        ],
+        "additionalProperties": false
+      },
+      "PartnerIdentity": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/OrganizationIdentity"
+          },
+          {
+            "$ref": "#/components/schemas/IndividualIdentity"
+          }
+        ],
+        "description": "Thông tin định danh: \"tổ chức\" kèm taxCode, hoặc \"cá nhân\" kèm citizenId."
+      },
+      "OrganizationIdentity": {
+        "type": "object",
+        "properties": {
+          "legalForm": {
+            "type": "string",
+            "enum": [
+              "tổ chức"
+            ],
+            "description": "Hình thức pháp nhân: tổ chức"
+          },
+          "taxCode": {
+            "minLength": 10,
+            "maxLength": 13,
+            "pattern": "^([0-9]{10}|[0-9]{13})$",
+            "description": "Mã số thuế, bắt buộc với tổ chức: đúng 10 hoặc 13 chữ số, không gạch nối, không dấu cách. Khoảng trắng hai đầu được bỏ trước khi kiểm",
+            "type": "string"
+          }
+        },
+        "required": [
+          "legalForm",
+          "taxCode"
+        ],
+        "additionalProperties": false
+      },
+      "IndividualIdentity": {
+        "type": "object",
+        "properties": {
+          "legalForm": {
+            "type": "string",
+            "enum": [
+              "cá nhân"
+            ],
+            "description": "Hình thức pháp nhân: cá nhân"
+          },
+          "citizenId": {
+            "minLength": 12,
+            "maxLength": 12,
+            "pattern": "^[0-9]{12}$",
+            "description": "Số CCCD, bắt buộc với cá nhân: đúng 12 chữ số. Khoảng trắng hai đầu được bỏ trước khi kiểm",
+            "type": "string"
+          }
+        },
+        "required": [
+          "legalForm",
+          "citizenId"
+        ],
+        "additionalProperties": false
+      },
+      "PartnerDuplicateCheck": {
+        "type": "object",
+        "properties": {
+          "partners": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DuplicatePartner"
+            },
+            "description": "Mọi đối tác có cùng mã số thuế hoặc số CCCD, gồm cả đối tác TERMINATED (để cảnh báo ghi rõ trạng thái cũ)"
+          },
+          "applications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DuplicateApplication"
+            },
+            "description": "Đơn đang mở (SUBMITTED, UNDER_REVIEW, NEEDS_INFO) có cùng mã số thuế hoặc số CCCD"
+          },
+          "canConfirm": {
+            "type": "boolean",
+            "description": "false khi trùng đối tác chưa chấm dứt hoặc đơn đang mở: không được xác nhận tạo, admin chỉ có thể hủy. true khi không trùng hoặc chỉ trùng đối tác TERMINATED"
+          }
+        },
+        "required": [
+          "partners",
+          "applications",
+          "canConfirm"
+        ],
+        "additionalProperties": false,
+        "description": "Cảnh báo trùng pháp nhân (BR-PARTNER-ONBOARDING-019). Hai danh sách rỗng: không trùng."
+      },
+      "DuplicatePartner": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING_ACTIVATION",
+              "ACTIVE",
+              "SUSPENDED",
+              "TERMINATED"
+            ],
+            "description": "Trạng thái hiện tại của đối tác trùng"
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "DuplicateApplication": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "SUBMITTED",
+              "UNDER_REVIEW",
+              "NEEDS_INFO"
+            ],
+            "description": "Trạng thái của đơn đang mở trùng"
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "DirectPartnerDraft": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/OrganizationPartnerDraft"
+          },
+          {
+            "$ref": "#/components/schemas/IndividualPartnerDraft"
+          }
+        ],
+        "description": "Dữ liệu màn tạo đối tác trực tiếp: tổ chức kèm taxCode, cá nhân kèm citizenId; các trường còn lại như nhau."
+      },
+      "OrganizationPartnerDraft": {
+        "type": "object",
+        "properties": {
+          "legalForm": {
+            "type": "string",
+            "enum": [
+              "tổ chức"
+            ],
+            "description": "Hình thức pháp nhân: tổ chức"
+          },
+          "taxCode": {
+            "minLength": 10,
+            "maxLength": 13,
+            "pattern": "^([0-9]{10}|[0-9]{13})$",
+            "description": "Mã số thuế, bắt buộc với tổ chức: đúng 10 hoặc 13 chữ số, không gạch nối, không dấu cách. Khoảng trắng hai đầu được bỏ trước khi kiểm",
+            "type": "string"
+          },
+          "legalName": {
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Tên pháp nhân, 1–255 ký tự, không chỉ gồm khoảng trắng. Khoảng trắng hai đầu được bỏ trước khi kiểm",
+            "type": "string"
+          },
+          "contractNumber": {
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Số hợp đồng hợp tác, 1–255 ký tự, không chỉ gồm khoảng trắng. Khoảng trắng hai đầu được bỏ trước khi kiểm",
+            "type": "string"
+          },
+          "contractDate": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+            "description": "Ngày hợp đồng hợp tác, dạng YYYY-MM-DD, không muộn hơn hôm nay theo giờ Việt Nam (muộn hơn: lỗi 422 PARTNER_CONTRACT_DATE_IN_FUTURE)"
+          },
+          "invitedEmail": {
+            "minLength": 1,
+            "maxLength": 254,
+            "format": "email",
+            "description": "Email người nhận lời mời Owner, tối đa 254 ký tự. Khoảng trắng hai đầu được bỏ trước khi kiểm. Đúng một dấu @, có ít nhất một ký tự trước @, phần sau @ có dấu chấm nhưng không bắt đầu và không kết thúc bằng dấu chấm, không có khoảng trắng; so khớp không phân biệt hoa thường",
+            "type": "string"
+          }
+        },
+        "required": [
+          "legalForm",
+          "taxCode",
+          "legalName",
+          "contractNumber",
+          "contractDate",
+          "invitedEmail"
+        ],
+        "additionalProperties": false
+      },
+      "IndividualPartnerDraft": {
+        "type": "object",
+        "properties": {
+          "legalForm": {
+            "type": "string",
+            "enum": [
+              "cá nhân"
+            ],
+            "description": "Hình thức pháp nhân: cá nhân"
+          },
+          "citizenId": {
+            "minLength": 12,
+            "maxLength": 12,
+            "pattern": "^[0-9]{12}$",
+            "description": "Số CCCD, bắt buộc với cá nhân: đúng 12 chữ số. Khoảng trắng hai đầu được bỏ trước khi kiểm",
+            "type": "string"
+          },
+          "legalName": {
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Tên pháp nhân, 1–255 ký tự, không chỉ gồm khoảng trắng. Khoảng trắng hai đầu được bỏ trước khi kiểm",
+            "type": "string"
+          },
+          "contractNumber": {
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Số hợp đồng hợp tác, 1–255 ký tự, không chỉ gồm khoảng trắng. Khoảng trắng hai đầu được bỏ trước khi kiểm",
+            "type": "string"
+          },
+          "contractDate": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+            "description": "Ngày hợp đồng hợp tác, dạng YYYY-MM-DD, không muộn hơn hôm nay theo giờ Việt Nam (muộn hơn: lỗi 422 PARTNER_CONTRACT_DATE_IN_FUTURE)"
+          },
+          "invitedEmail": {
+            "minLength": 1,
+            "maxLength": 254,
+            "format": "email",
+            "description": "Email người nhận lời mời Owner, tối đa 254 ký tự. Khoảng trắng hai đầu được bỏ trước khi kiểm. Đúng một dấu @, có ít nhất một ký tự trước @, phần sau @ có dấu chấm nhưng không bắt đầu và không kết thúc bằng dấu chấm, không có khoảng trắng; so khớp không phân biệt hoa thường",
+            "type": "string"
+          }
+        },
+        "required": [
+          "legalForm",
+          "citizenId",
+          "legalName",
+          "contractNumber",
+          "contractDate",
+          "invitedEmail"
         ],
         "additionalProperties": false
       },

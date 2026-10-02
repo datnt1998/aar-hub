@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { email, taxCode, text } from '../common/fields.js';
 import { APPLICATION_STATUSES, LEGAL_FORMS } from '../db/schema.js';
 import {
   type FileUpload,
@@ -7,42 +8,6 @@ import {
   MAX_FILE_BYTES,
   MAX_OTHER_DOCUMENTS,
 } from './partner-applications.js';
-
-/** Length in Unicode characters of an already trimmed, NFC-normalised string. */
-const characters = (value: string): number => [...value].length;
-
-/**
- * FD-EMAIL with DEC-PARTNER-ONBOARDING-015: exactly one @, at least one character before it, a dot after it that is
- * neither the first nor the last character of the part after @, no whitespace. Matching is case-insensitive, so the
- * value is kept as typed.
- */
-const EMAIL_SHAPE = /^[^@\s]+@(?=[^@\s]*\.)[^.@\s][^@\s]*[^.@\s]$/;
-
-/** Exactly 10 or 13 digits, no hyphen, no space (FD-TAX-CODE). */
-const TAX_CODE_SHAPE = /^(?:[0-9]{10}|[0-9]{13})$/;
-
-/**
- * Text input of the ticket: surrounding whitespace is dropped, the rest is Unicode NFC, and the length is counted in
- * characters between `min` and `max`. `shape` adds a format rule.
- */
-function text(min: number, max: number, shape?: { pattern: RegExp; format: string }) {
-  return z
-    .string()
-    .transform((value) => value.trim().normalize('NFC'))
-    .pipe(
-      z.string().check((ctx) => {
-        const length = characters(ctx.value);
-        if (length < min) {
-          ctx.issues.push({ code: 'too_small', origin: 'string', minimum: min, inclusive: true, input: ctx.value });
-        } else if (length > max) {
-          ctx.issues.push({ code: 'too_big', origin: 'string', maximum: max, inclusive: true, input: ctx.value });
-        } else if (shape && !shape.pattern.test(ctx.value)) {
-          ctx.issues.push({ code: 'invalid_format', format: shape.format, input: ctx.value });
-        }
-      }),
-    )
-    .meta({ minLength: min, maxLength: max });
-}
 
 const personName = () => text(1, 255);
 
@@ -62,15 +27,12 @@ export const OrganizationApplicationCreateSchema = z
         'Hình thức nộp đơn. Endpoint này chỉ nhận đơn "tổ chức"; "cá nhân" thuộc use case khác nên bị từ chối ở trường này.',
     }),
     applicantName: personName().meta({ description: 'Họ tên người nộp đơn, 1–255 ký tự, không chỉ gồm khoảng trắng' }),
-    contactEmail: text(1, 254, { pattern: EMAIL_SHAPE, format: 'email' }).meta({
-      format: 'email',
+    contactEmail: email().meta({
       description:
         'Email liên hệ, tối đa 254 ký tự. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu. Đúng một dấu @, có ít nhất một ký tự trước @, phần sau @ có dấu chấm nhưng không bắt đầu và không kết thúc bằng dấu chấm, không có khoảng trắng; so khớp không phân biệt hoa thường',
     }),
     legalName: text(1, 255).meta({ description: 'Tên pháp nhân, 1–255 ký tự, không chỉ gồm khoảng trắng' }),
-    taxCode: text(1, 13, { pattern: TAX_CODE_SHAPE, format: 'regex' }).meta({
-      minLength: 10,
-      pattern: '^([0-9]{10}|[0-9]{13})$',
+    taxCode: taxCode().meta({
       description:
         'Mã số thuế: đúng 10 hoặc 13 chữ số, không gạch nối, không dấu cách ở giữa. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu',
     }),

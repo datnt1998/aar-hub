@@ -20,9 +20,20 @@ const bytea = customType<{ data: Buffer; driverData: Buffer }>({
 export const LEGAL_FORMS = ['tổ chức', 'cá nhân'] as const;
 export type LegalForm = (typeof LEGAL_FORMS)[number];
 
-/** Statuses an application can be in. Other tickets own the transitions after SUBMITTED. */
-export const APPLICATION_STATUSES = ['SUBMITTED', 'UNDER_REVIEW', 'NEEDS_INFO'] as const;
+/** Statuses of an application (ENT-PARTNER-APPLICATION). Other tickets own the transitions after SUBMITTED. */
+export const APPLICATION_STATUSES = ['SUBMITTED', 'UNDER_REVIEW', 'NEEDS_INFO', 'APPROVED', 'REJECTED'] as const;
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
+
+/** Applications still waiting for a decision: "đơn đang mở" in BR-PARTNER-ONBOARDING-019. */
+export const OPEN_APPLICATION_STATUSES = [
+  'SUBMITTED',
+  'UNDER_REVIEW',
+  'NEEDS_INFO',
+] as const satisfies readonly ApplicationStatus[];
+
+/** Statuses of a partner (ENT-PARTNER), set by the system. */
+export const PARTNER_STATUSES = ['PENDING_ACTIVATION', 'ACTIVE', 'SUSPENDED', 'TERMINATED'] as const;
+export type PartnerStatus = (typeof PARTNER_STATUSES)[number];
 
 export const ATTACHMENT_KINDS = ['BUSINESS_REGISTRATION', 'OTHER'] as const;
 export type AttachmentKind = (typeof ATTACHMENT_KINDS)[number];
@@ -48,20 +59,21 @@ export const accounts = pgTable(
 );
 
 /**
- * Partner (ENT-PARTNER). Owned by the partner tickets: the columns and the values of `status` are theirs to define.
- * BE-01 never reads or writes this table (a duplicate tax code is accepted silently); it exists only so AC-01-11 can
- * hold an existing partner in a test. `status` is free text for that reason, not a list of known states.
+ * Partner (ENT-PARTNER). An organization has a tax code, an individual a citizen id (BR-PARTNER-ONBOARDING-008).
+ * BE-15 reads it to warn about a duplicate legal entity; creating partners belongs to BE-04, which adds the columns it
+ * stores. BE-01 never reads or writes this table (a duplicate tax code is accepted silently).
  */
 export const partners = pgTable(
   'partners',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     legalName: text('legal_name').notNull(),
-    taxCode: text('tax_code').notNull(),
-    status: text('status').notNull(),
+    taxCode: text('tax_code'),
+    citizenId: text('citizen_id'),
+    status: text('status').$type<PartnerStatus>().notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('partners_tax_code_idx').on(t.taxCode)],
+  (t) => [index('partners_tax_code_idx').on(t.taxCode), index('partners_citizen_id_idx').on(t.citizenId)],
 );
 
 /** ENT-PARTNER-APPLICATION. */
@@ -75,12 +87,17 @@ export const partnerApplications = pgTable(
     contactEmail: text('contact_email').notNull(),
     legalName: text('legal_name').notNull(),
     taxCode: text('tax_code').notNull(),
+    /** Citizen id of an individual applicant. Only the individual application flow (another ticket) fills it. */
+    citizenId: text('citizen_id'),
     /** "Chỉ bán hàng": no declared artists required. */
     salesOnly: boolean('sales_only').notNull().default(false),
     declaredArtists: jsonb('declared_artists').$type<string[]>().notNull(),
     submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('partner_applications_tax_code_idx').on(t.taxCode)],
+  (t) => [
+    index('partner_applications_tax_code_idx').on(t.taxCode),
+    index('partner_applications_citizen_id_idx').on(t.citizenId),
+  ],
 );
 
 /** Uploaded file. Starts unattached (upload step) and is attached to an application when it is submitted. */
