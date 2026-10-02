@@ -13,14 +13,17 @@ export const EICAR = 'X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST
  * - `error`: an ERROR reply, as clamd sends when the scan itself fails.
  * - `silent`: never answers.
  * - `hangup`: closes the connection without answering.
+ * - `hold`: answers like `scan`, but only when the test calls `release()`.
  */
-export type FakeClamdMode = 'scan' | 'error' | 'silent' | 'hangup';
+export type FakeClamdMode = 'scan' | 'error' | 'silent' | 'hangup' | 'hold';
 
 export interface FakeClamd {
   port: number;
   mode: FakeClamdMode;
   /** Contents received, in order, for assertions. */
   scanned: Buffer[];
+  /** Answers every scan held in `hold` mode, as `scan` mode would have. */
+  release: () => void;
   close: () => Promise<void>;
 }
 
@@ -32,10 +35,18 @@ const COMMAND = Buffer.from('zINSTREAM\0');
  */
 export async function startFakeClamd(): Promise<FakeClamd> {
   const sockets = new Set<Socket>();
+  let held: (() => void)[] = [];
   const fake: FakeClamd = {
     port: 0,
     mode: 'scan',
     scanned: [],
+    release: () => {
+      const answers = held;
+      held = [];
+      for (const answer of answers) {
+        answer();
+      }
+    },
     close: async () => {
       for (const socket of sockets) {
         socket.destroy();
@@ -81,9 +92,13 @@ export async function startFakeClamd(): Promise<FakeClamd> {
 
   function answer(socket: Socket, content: Buffer): void {
     fake.scanned.push(content);
+    const verdict = content.includes(EICAR) ? 'stream: Eicar-Test-Signature FOUND\0' : 'stream: OK\0';
     switch (fake.mode) {
       case 'scan':
-        socket.end(content.includes(EICAR) ? 'stream: Eicar-Test-Signature FOUND\0' : 'stream: OK\0');
+        socket.end(verdict);
+        return;
+      case 'hold':
+        held.push(() => socket.end(verdict));
         return;
       case 'error':
         socket.end('Can not allocate memory ERROR\0');

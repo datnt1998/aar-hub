@@ -9,6 +9,7 @@ import {
   partners,
 } from '../src/db/schema.js';
 import { MalwareScanner } from '../src/malware-scan/malware-scanner.js';
+import { RESUBMIT_WINDOW_MS } from '../src/partner-applications/partner-applications.js';
 import { PartnerApplicationSchema } from '../src/partner-applications/partner-applications.schemas.js';
 import { createTestApp, type TestApp } from './support/create-test-app.js';
 import { EICAR, type FakeClamd, startFakeClamd } from './support/fake-clamd.js';
@@ -414,8 +415,12 @@ describe('partner applications (organization)', () => {
   });
 
   describe('input limits', () => {
-    /** Posts one input value and expects the application to be accepted; returns it. */
+    /**
+     * Posts one input value and expects the application to be accepted; returns it. Each call comes after the resubmit
+     * window, so it is a new application rather than a repeat of the previous one.
+     */
     async function accepted(field: string, value: FormValue, others: Record<string, FormValue> = {}) {
+      t.clock.advance(RESUBMIT_WINDOW_MS + 1);
       const res = await submit({ [field]: value, ...others });
       expect(res.status, `${field} = ${JSON.stringify(value)?.slice(0, 40)} should be accepted`).toBe(201);
       return created(res);
@@ -801,6 +806,7 @@ describe('partner applications (organization)', () => {
     it('otherDocuments takes none, one or two files of at most 10 MB each and refuses a third', async () => {
       expect((await submit({ otherDocuments: undefined })).status).toBe(201);
       expect((await submit({ otherDocuments: [file('a.pdf')] })).status).toBe(201);
+      t.clock.advance(RESUBMIT_WINDOW_MS + 1);
       const two = await expectStatus(
         201,
         submit({ otherDocuments: [file('a.pdf', ofSize(PDF, 10 * MB)), file('b.png', PNG)] }),
