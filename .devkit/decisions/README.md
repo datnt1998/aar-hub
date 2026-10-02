@@ -18,6 +18,7 @@ Agent không tự chấp nhận ADR: soạn ADR ở trạng thái `Đề xuất`
 | [0002](0002-cong-cu-kiem-cap-repo.md) | Bộ kiểm cấp repo: Prettier, lint có type, ghim Node/pnpm, Renovate, squash-only | Chấp nhận |
 | [0003](0003-postgres-drizzle.md) | Dữ liệu: PostgreSQL + Drizzle; test trên PGlite | Chấp nhận |
 | [0004](0004-hop-dong-http-cua-api.md) | Hợp đồng HTTP của API: Zod, Problem Details có `code`, response lọc theo schema | Chấp nhận |
+| [0005](0005-nen-tang-web.md) | Nền tảng web: TanStack Router + Query, react-hook-form, MSW có type | Chấp nhận |
 
 ## Mẫu
 

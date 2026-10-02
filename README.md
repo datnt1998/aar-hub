@@ -4,7 +4,7 @@ App sản phẩm của AAR: API NestJS (`apps/api`) và giao diện React + Tail
 
 ```bash
 pnpm install
-pnpm verify   # format:check, lint, typecheck, test, e2e, build, openapi:check
+pnpm verify   # format:check, lint, typecheck, test, e2e, build, openapi:check, db:check
 ```
 
 Bộ luật, quy trình code, contract với Ops và quyết định kỹ thuật: [`.devkit/`](.devkit/README.md) (agent nạp qua [`AGENTS.md`](AGENTS.md)).

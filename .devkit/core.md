@@ -46,9 +46,9 @@ Monorepo pnpm workspace + Turborepo (`turbo.json`), Node 22 (`.nvmrc`), pnpm 10.
 | `apps/api` | NestJS 12 (ESM), Zod, PostgreSQL + Drizzle. Module theo tính năng trong `src/<feature>/`. Test: Vitest, `src/**/*.spec.ts` và `test/**/*.e2e-spec.ts` (PGlite) |
 | `apps/api/drizzle/` | Migration SQL sinh từ `src/db/schema.ts`, không sửa tay |
 | `apps/api/openapi.json` | **Tài liệu interface** của API, sinh từ code |
-| `apps/web` | React 19 + Vite + Tailwind v4. Test: Vitest `src/**/*.test.tsx`, Playwright `e2e/*.spec.ts` |
-| `apps/web/src/api/client.ts` | Client có type gọi API (`openapi-fetch`) |
-| `apps/web/src/api/schema.gen.ts` | Type sinh từ `openapi.json`, không sửa tay |
+| `apps/web` | React 19 + Vite + Tailwind v4, TanStack Router (route theo file) + TanStack Query, react-hook-form + Zod. Test: Vitest + MSW `src/**/*.test.tsx`, Playwright + axe `e2e/*.spec.ts` |
+| `apps/web/src/api/client.ts` | Client có type gọi API (`api`, `$api`) |
+| `apps/web/src/api/schema.gen.ts`, `apps/web/src/routeTree.gen.ts` | File sinh (từ `openapi.json`; từ `src/routes/`), không sửa tay |
 | `.devkit/` | Bộ luật và quy trình code (file này), ADR, script harness |
 
 ## Lệnh
@@ -67,6 +67,7 @@ Chạy ở gốc repo. Lệnh qua `turbo` có cache; bỏ cache bằng `--force`
 | Build | `pnpm build` |
 | Xuất tài liệu interface | `pnpm openapi` (ghi `apps/api/openapi.json` rồi sinh `apps/web/src/api/schema.gen.ts`) |
 | Kiểm tài liệu interface không lệch | `pnpm openapi:check` |
+| Sinh lại cây route web | `pnpm --filter web routes` (dev/build/test tự sinh) |
 | Sinh migration sau khi đổi bảng | `pnpm --filter api db:generate` (kiểm: `pnpm db:check`; áp vào database: `DATABASE_URL=… pnpm --filter api db:migrate`) |
 | Liệt kê test theo AC | `pnpm ac`, `pnpm ac --json`, `pnpm ac AC-X-DEMO-01` |
 | Kiểm bộ luật `.devkit` | `pnpm devkit:check` |
