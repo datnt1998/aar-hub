@@ -235,6 +235,21 @@ describe('partner applications (organization)', () => {
       expectInvalid(await submit({ declaredArtists: ['  '] }), 'declaredArtists/0');
     });
 
+    it('a request without an object body is refused with 400, not a server error', async () => {
+      const none = await t.http().post('/api/partner-applications');
+      expect(none.status).toBe(400);
+      expect(none.body).toMatchObject({ code: 'VALIDATION_FAILED' });
+      for (const body of [null, 'text', [1], 5]) {
+        const res = await t
+          .http()
+          .post('/api/partner-applications')
+          .send(JSON.stringify(body))
+          .set('Content-Type', 'application/json');
+        expect(res.status, JSON.stringify(body)).toBe(400);
+      }
+      await expectNothingCreated();
+    });
+
     it('every missing required input is listed together', async () => {
       const res = await post({ salesOnly: true });
       expectInvalid(res, 'legalForm', 'applicantName', 'contactEmail', 'legalName', 'taxCode', 'businessRegistration');

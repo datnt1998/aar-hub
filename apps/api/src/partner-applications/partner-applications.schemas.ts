@@ -96,6 +96,10 @@ export const OrganizationApplicationCreateSchema = z
   // its own check is absent from the value, so each rule reads only what is present and well-formed.
   .superRefine(
     (value, ctx) => {
+      // The body may not be an object at all (missing, null, a string); the object check already reported that.
+      if (typeof value !== 'object' || value === null) {
+        return;
+      }
       const { salesOnly, declaredArtists, businessRegistration, otherDocuments } = value as Partial<
         Record<keyof typeof value, unknown>
       >;
