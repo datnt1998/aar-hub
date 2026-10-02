@@ -2,6 +2,10 @@ import { count, getTableName, is } from 'drizzle-orm';
 import { PgTable } from 'drizzle-orm/pg-core';
 import * as schema from '../src/db/schema.js';
 import { type ApplicationStatus, partnerApplications, partners, type PartnerStatus } from '../src/db/schema.js';
+import {
+  AttachmentSchema,
+  PartnerApplicationSchema,
+} from '../src/partner-applications/partner-applications.schemas.js';
 import { PartnerDuplicateCheckSchema } from '../src/partners/partners.schemas.js';
 import { createTestApp, type TestApp } from './support/create-test-app.js';
 
@@ -70,7 +74,34 @@ describe('preparing a direct partner creation', () => {
     return row?.id;
   }
 
-  async function seedApplication(status: ApplicationStatus, identity: { taxCode: string; citizenId?: string }) {
+  /** An organization application submitted through the API, as an applicant would. */
+  async function submitApplication(taxCode: string) {
+    const upload = await t
+      .http()
+      .post('/api/partner-applications/attachments')
+      .attach('file', Buffer.from('%PDF-1.4 demo'), { filename: 'gpkd.pdf' })
+      .expect(201);
+    const res = await t
+      .http()
+      .post('/api/partner-applications')
+      .send({
+        legalForm: 'tổ chức',
+        applicantName: 'Người nộp đơn',
+        contactEmail: 'nop@example.com',
+        legalName: 'Pháp nhân đã nộp đơn',
+        taxCode,
+        businessRegistration: AttachmentSchema.parse(upload.body).id,
+        salesOnly: true,
+      })
+      .expect(201);
+    return PartnerApplicationSchema.parse(res.body).id;
+  }
+
+  /** An application in a status the API cannot reach yet (review belongs to other tickets), or an individual one. */
+  async function seedApplication(
+    status: Exclude<ApplicationStatus, 'SUBMITTED'>,
+    identity: { taxCode: string; citizenId?: string },
+  ) {
     const [row] = await t.db
       .insert(partnerApplications)
       .values({
@@ -118,7 +149,7 @@ describe('preparing a direct partner creation', () => {
   describe('duplicate legal entity (BR-PARTNER-ONBOARDING-019)', () => {
     it('no partner or application with the identity: no warning, creation can be confirmed', async () => {
       await seedPartner('ACTIVE', { taxCode: '0399999999' });
-      await seedApplication('SUBMITTED', { taxCode: '0399999999' });
+      await submitApplication('0399999999');
       const expected = { partners: [], applications: [], canConfirm: true };
       expect(warning(await checkDraft(organization()))).toEqual(expected);
       expect(warning(await checkDraft(individual()))).toEqual(expected);
@@ -137,7 +168,13 @@ describe('preparing a direct partner creation', () => {
     });
 
     it('an open application blocks confirming; a decided one is no duplicate', async () => {
-      for (const status of ['SUBMITTED', 'UNDER_REVIEW', 'NEEDS_INFO'] as const) {
+      const submitted = await submitApplication(TAX_CODE);
+      expect(warning(await checkDraft(organization()))).toEqual({
+        partners: [],
+        applications: [{ id: submitted, status: 'SUBMITTED' }],
+        canConfirm: false,
+      });
+      for (const status of ['UNDER_REVIEW', 'NEEDS_INFO'] as const) {
         await t.reset();
         const id = await seedApplication(status, { taxCode: TAX_CODE });
         expect(warning(await checkDraft(organization())), status).toEqual({
@@ -208,7 +245,7 @@ describe('preparing a direct partner creation', () => {
 
     it('the identity check gives the same answer as the full check', async () => {
       await seedPartner('TERMINATED', { citizenId: CITIZEN_ID });
-      await seedApplication('SUBMITTED', { taxCode: TAX_CODE });
+      await submitApplication(TAX_CODE);
       expect(warning(await checkIdentity({ legalForm: 'cá nhân', citizenId: CITIZEN_ID }))).toEqual(
         warning(await checkDraft(individual())),
       );
