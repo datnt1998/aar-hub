@@ -434,6 +434,16 @@ describe('partner applications (organization)', () => {
       expect(await t.db.select().from(attachments)).toHaveLength(0);
     });
 
+    it('rejects a text field named file sent next to the real file', async () => {
+      const res = await http()
+        .post('/api/partner-applications/attachments')
+        .field('file', 'x')
+        .attach('file', Buffer.from('%PDF-1.4 demo'), { filename: 'gpkd.pdf', contentType: 'application/pdf' })
+        .expect(400);
+      expect(res.body).toMatchObject({ code: 'VALIDATION_FAILED', errors: [{ pointer: '/body/file' }] });
+      expect(await t.db.select().from(attachments)).toHaveLength(0);
+    });
+
     it('accepts a file of exactly 10 MB', async () => {
       const res = await http()
         .post('/api/partner-applications/attachments')

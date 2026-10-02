@@ -9,7 +9,10 @@ import type { Observable } from 'rxjs';
 export class FileToBodyInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest<{ body?: object; file?: unknown }>();
-    request.body = { ...request.body, file: request.file };
+    // A text field named `file` is left in place so the schema rejects it instead of the real file hiding it.
+    if (!request.body || !('file' in request.body)) {
+      request.body = { ...request.body, file: request.file };
+    }
     return next.handle();
   }
 }
