@@ -26,4 +26,5 @@ Chọn 1. Bảng `accounts` chỉ là chỗ đọc tạm: chỉ `PartnerApplicat
 - Ticket đăng nhập tiếp quản bảng `accounts` và khóa ngoại `notifications.account_id`: viết migration đổi hoặc thay bảng, chuyển dữ liệu, và sửa `findPlatformAdmins` nếu vai trò admin đổi chỗ lưu.
 - Cho đến khi đó, AC-01-10 chỉ được chứng minh với admin chèn tay vào database; chưa có cách tạo admin trên môi trường thật.
 - Bảng `partners` cũng là bản tạm: BE-01 không đọc hay ghi bảng này, nó chỉ có để test AC-01-11. Cột và giá trị `status` là đoán; ticket đối tác tiếp quản bảng `partners` cùng các cột của nó (đổi hoặc thay bằng migration của ticket đó).
+- BE-14 thêm cột `partners.citizen_id` (có index) và cho `partners.tax_code` được để trống, chỉ để test AC-14-01 ví dụ 3 (đối tác `ACTIVE` trùng số CCCD); BE-14 không đọc hay ghi bảng này. Migration tiếp quản của ticket đối tác phải tính cả hai thay đổi này.
 - Người duyệt từ chối ADR này thì BE-01 chuyển sang lựa chọn 2: bỏ `accounts` và `notifications.account_id` khỏi migration, báo `spec_gap` cho AC-01-10.
