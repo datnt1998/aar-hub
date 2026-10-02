@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Clock } from '../common/time/clock.js';
 import { MalwareScanner } from '../malware-scan/malware-scanner.js';
-import { FileInfectedError, FileScanUnavailableError } from './partner-applications.errors.js';
+import {
+  AttachmentOpenForbiddenError,
+  FileInfectedError,
+  FileScanUnavailableError,
+} from './partner-applications.errors.js';
 import {
   type AcceptedFile,
   type ApplicationFile,
@@ -52,6 +56,16 @@ export class PartnerApplicationsService {
       { legalForm, applicantName, contactEmail, legalName, citizenId, salesOnly, declaredArtists },
       [],
     );
+  }
+
+  /**
+   * Opens a file of an application for its content. BR-PARTNER-ONBOARDING-040: only a platform admin and the account
+   * bound to the application may. Logging in belongs to the shared login ticket and does not exist yet, so no caller
+   * can be either: every caller is refused, whatever the application or file, and nothing is read or changed. The
+   * admin case (AC-PARTNER-ONBOARDING-24-01) comes with the admin login.
+   */
+  openAttachment(applicationId: string, attachmentId: string): never {
+    throw new AttachmentOpenForbiddenError(applicationId, attachmentId);
   }
 
   /**
