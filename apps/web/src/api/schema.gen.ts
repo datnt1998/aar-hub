@@ -73,6 +73,13 @@ export interface components {
             /** @description Seconds since the API process started */
             uptimeSeconds: number;
         };
+        AttachmentUploadRequest: {
+            /**
+             * Format: binary
+             * @description File to upload, at most 10485760 bytes
+             */
+            file: string;
+        };
         Attachment: {
             /** Format: uuid */
             id: string;
@@ -220,10 +227,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "multipart/form-data": {
-                    /** Format: binary */
-                    file: string;
-                };
+                "multipart/form-data": components["schemas"]["AttachmentUploadRequest"];
             };
         };
         responses: {
@@ -233,18 +237,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Attachment"];
-                };
-            };
-            /** @description PARTNER_APPLICATION_FILE_REQUIRED */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"] & {
-                        /** @enum {string} */
-                        code: "PARTNER_APPLICATION_FILE_REQUIRED";
-                    };
                 };
             };
             /** @description PAYLOAD_TOO_LARGE */

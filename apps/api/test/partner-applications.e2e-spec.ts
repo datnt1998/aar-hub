@@ -419,9 +419,19 @@ describe('partner applications (organization)', () => {
         .post('/api/partner-applications/attachments')
         .attach('file', Buffer.alloc(0), { filename: 'rong.pdf' })
         .expect(400);
-      expect(empty.body.code).toBe('PARTNER_APPLICATION_FILE_REQUIRED');
+      expect(empty.body).toMatchObject({ code: 'VALIDATION_FAILED', errors: [{ pointer: '/body/file' }] });
       const none = await http().post('/api/partner-applications/attachments').expect(400);
-      expect(none.body.code).toBe('PARTNER_APPLICATION_FILE_REQUIRED');
+      expect(none.body).toMatchObject({ code: 'VALIDATION_FAILED', errors: [{ pointer: '/body/file' }] });
+    });
+
+    it('rejects an unknown form field next to the file and stores nothing', async () => {
+      const res = await http()
+        .post('/api/partner-applications/attachments')
+        .field('note', 'x')
+        .attach('file', Buffer.from('%PDF-1.4 demo'), { filename: 'gpkd.pdf', contentType: 'application/pdf' })
+        .expect(400);
+      expect(res.body).toMatchObject({ code: 'VALIDATION_FAILED', errors: [{ pointer: '/body/note' }] });
+      expect(await t.db.select().from(attachments)).toHaveLength(0);
     });
 
     it('accepts a file of exactly 10 MB', async () => {

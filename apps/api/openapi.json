@@ -42,16 +42,7 @@
           "content": {
             "multipart/form-data": {
               "schema": {
-                "type": "object",
-                "required": [
-                  "file"
-                ],
-                "properties": {
-                  "file": {
-                    "type": "string",
-                    "format": "binary"
-                  }
-                }
+                "$ref": "#/components/schemas/AttachmentUploadRequest"
               }
             }
           }
@@ -63,34 +54,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Attachment"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "PARTNER_APPLICATION_FILE_REQUIRED",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Problem"
-                    },
-                    {
-                      "type": "object",
-                      "required": [
-                        "code"
-                      ],
-                      "properties": {
-                        "code": {
-                          "type": "string",
-                          "enum": [
-                            "PARTNER_APPLICATION_FILE_REQUIRED"
-                          ]
-                        }
-                      }
-                    }
-                  ]
                 }
               }
             }
@@ -243,6 +206,20 @@
         "required": [
           "status",
           "uptimeSeconds"
+        ],
+        "additionalProperties": false
+      },
+      "AttachmentUploadRequest": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "description": "File to upload, at most 10485760 bytes"
+          }
+        },
+        "required": [
+          "file"
         ],
         "additionalProperties": false
       },

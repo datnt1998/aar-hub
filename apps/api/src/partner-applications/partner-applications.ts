@@ -18,6 +18,23 @@ export interface FileUpload {
   buffer: Buffer;
 }
 
+/** True for an object shaped like a Multer file with at least one byte. */
+export function isNonEmptyFile(value: unknown): value is FileUpload {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'buffer' in value &&
+    Buffer.isBuffer(value.buffer) &&
+    'size' in value &&
+    typeof value.size === 'number' &&
+    value.size > 0 &&
+    'originalname' in value &&
+    typeof value.originalname === 'string' &&
+    'mimetype' in value &&
+    typeof value.mimetype === 'string'
+  );
+}
+
 export interface Attachment {
   id: string;
   fileName: string;

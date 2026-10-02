@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import { APPLICATION_STATUSES, APPLICATION_TYPES } from '../db/schema.js';
-import { MAX_OTHER_ATTACHMENTS } from './partner-applications.js';
+import {
+  type FileUpload,
+  isNonEmptyFile,
+  MAX_ATTACHMENT_BYTES,
+  MAX_OTHER_ATTACHMENTS,
+} from './partner-applications.js';
 
 const Text = z.string().trim().min(1);
 
@@ -58,6 +63,21 @@ export const OrganizationApplicationCreateSchema = z
   .meta({ id: 'OrganizationApplicationCreateRequest' });
 
 export type OrganizationApplicationCreate = z.infer<typeof OrganizationApplicationCreateSchema>;
+
+/**
+ * Upload form (multipart/form-data): one `file` part and nothing else. FileToBodyInterceptor puts the file Multer
+ * parsed under `file`, so a missing or empty file and unknown form fields fail like any other input (400 VALIDATION_FAILED).
+ */
+export const AttachmentUploadFormSchema = z
+  .strictObject({
+    file: z
+      .unknown()
+      .refine((value): value is FileUpload => isNonEmptyFile(value), 'A non-empty file is required')
+      .meta({ type: 'string', format: 'binary', description: `File to upload, at most ${MAX_ATTACHMENT_BYTES} bytes` }),
+  })
+  .meta({ id: 'AttachmentUploadRequest' });
+
+export type AttachmentUploadForm = z.infer<typeof AttachmentUploadFormSchema>;
 
 export const AttachmentSchema = z
   .object({

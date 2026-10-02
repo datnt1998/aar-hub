@@ -1,10 +1,13 @@
-import { BadRequestException, Body, Controller, HttpStatus, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, HttpStatus, Post, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ApiProblem, Returns } from '../common/http/decorators.js';
-import { type FileUpload, MAX_ATTACHMENT_BYTES } from './partner-applications.js';
+import { FileToBodyInterceptor } from './file-to-body.interceptor.js';
+import { MAX_ATTACHMENT_BYTES } from './partner-applications.js';
 import {
+  type AttachmentUploadForm,
   AttachmentSchema,
+  AttachmentUploadFormSchema,
   type AttachmentResponse,
   type OrganizationApplicationCreate,
   OrganizationApplicationCreateSchema,
@@ -19,23 +22,18 @@ export class PartnerApplicationsController {
   constructor(private readonly applications: PartnerApplicationsService) {}
 
   @Post('attachments')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_ATTACHMENT_BYTES } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_ATTACHMENT_BYTES } }), FileToBodyInterceptor)
   @ApiOperation({
     summary: 'Tải lên một file đính kèm',
     description: `Bước trước khi nộp đơn. Dùng id trả về trong businessRegistrationAttachmentId / otherAttachmentIds. Không cần tài khoản. File tối đa ${MAX_ATTACHMENT_BYTES} byte.`,
   })
   @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: { type: 'object', required: ['file'], properties: { file: { type: 'string', format: 'binary' } } },
-  })
   @Returns(HttpStatus.CREATED, AttachmentSchema)
-  @ApiProblem(400, 'PARTNER_APPLICATION_FILE_REQUIRED')
   @ApiProblem(413, 'PAYLOAD_TOO_LARGE')
-  uploadAttachment(@UploadedFile() file?: FileUpload): Promise<AttachmentResponse> {
-    if (!file || file.size === 0) {
-      throw new BadRequestException('A non-empty file is required', { errorCode: 'PARTNER_APPLICATION_FILE_REQUIRED' });
-    }
-    return this.applications.uploadAttachment(file);
+  uploadAttachment(
+    @Body({ schema: AttachmentUploadFormSchema }) form: AttachmentUploadForm,
+  ): Promise<AttachmentResponse> {
+    return this.applications.uploadAttachment(form.file);
   }
 
   @Post('organization')
