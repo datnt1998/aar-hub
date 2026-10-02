@@ -11,8 +11,8 @@
 
 1. **AC.** Mỗi AC trong phạm vi có test mang mã AC (`pnpm ac`), test đó thật sự chứng minh AC (đúng lớp, đúng biên, đúng trường hợp lỗi), và code làm đúng điều AC nói.
 2. **Ranh giới ticket.** BE không làm màn hình; UI không sửa `apps/api`, không đổi nghiệp vụ. Không có nghiệp vụ đoán ngoài ticket.
-3. **Luật devkit.** Code theo [.devkit/rules/api.md](../rules/api.md) / [.devkit/rules/web.md](../rules/web.md), test theo [.devkit/rules/testing.md](../rules/testing.md), git và PR theo [.devkit/rules/git.md](../rules/git.md). Luật database và dependency trong `.devkit/core.md`.
-4. **Interface.** Ticket BE đổi API: OpenAPI khai báo đủ request/response/lỗi, hai file sinh đã commit, `handoff` trỏ đúng path.
+3. **Luật devkit.** Code theo [.devkit/rules/api.md](../rules/api.md) / [.devkit/rules/web.md](../rules/web.md), test theo [.devkit/rules/testing.md](../rules/testing.md), git và PR theo [.devkit/rules/git.md](../rules/git.md). Hạ tầng đã/chưa chọn và dependency trong `.devkit/core.md`.
+4. **Interface.** Ticket BE đổi API: input/response khai bằng schema, mã lỗi nghiệp vụ khai bằng `@ApiProblem`, hai file sinh đã commit, `handoff` trỏ đúng path. Đổi bảng: migration sinh bằng `db:generate` đã commit.
 5. **Lỗi thật.** Bug, điều kiện biên, xử lý lỗi, bảo mật (lộ dữ liệu, thiếu kiểm quyền), race, test giả (mock lặp lại chính code).
 6. **Lệnh kiểm** xanh.
 

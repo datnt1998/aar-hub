@@ -3,7 +3,7 @@
   "paths": {
     "/api/health": {
       "get": {
-        "operationId": "HealthController_check",
+        "operationId": "Health_check",
         "parameters": [],
         "responses": {
           "200": {
@@ -11,7 +11,17 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HealthDto"
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error (Problem Details)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -33,7 +43,7 @@
   "servers": [],
   "components": {
     "schemas": {
-      "HealthDto": {
+      "Health": {
         "type": "object",
         "properties": {
           "status": {
@@ -44,15 +54,90 @@
             "description": "API process is up and serving requests"
           },
           "uptimeSeconds": {
-            "type": "number",
-            "description": "Seconds since the API process started",
-            "minimum": 0
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Seconds since the API process started"
           }
         },
         "required": [
           "status",
           "uptimeSeconds"
-        ]
+        ],
+        "additionalProperties": false
+      },
+      "Problem": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Problem type URI; `about:blank` when `code` is enough"
+          },
+          "title": {
+            "type": "string",
+            "description": "HTTP reason phrase of `status`"
+          },
+          "status": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "HTTP status code"
+          },
+          "code": {
+            "type": "string",
+            "description": "Stable machine-readable error code; clients branch and translate on this",
+            "example": "VALIDATION_FAILED"
+          },
+          "detail": {
+            "description": "English explanation for developers; never shown as UI text",
+            "type": "string"
+          },
+          "instance": {
+            "type": "string",
+            "description": "Request path that produced the error"
+          },
+          "errors": {
+            "description": "Per-input errors when `code` is VALIDATION_FAILED",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code",
+          "instance"
+        ],
+        "additionalProperties": false,
+        "description": "Error response (RFC 9457 Problem Details) with a required `code`"
+      },
+      "FieldError": {
+        "type": "object",
+        "properties": {
+          "pointer": {
+            "type": "string",
+            "description": "JSON Pointer (RFC 6901) to the invalid input, prefixed by its location: `/body/email`, `/query/page`, `/path/id`",
+            "example": "/body/email"
+          },
+          "code": {
+            "type": "string",
+            "description": "Machine-readable reason (schema issue code such as `too_small`, `invalid_format`)",
+            "example": "invalid_format"
+          },
+          "detail": {
+            "type": "string",
+            "description": "English explanation for developers; clients show their own text"
+          }
+        },
+        "required": [
+          "pointer",
+          "code",
+          "detail"
+        ],
+        "additionalProperties": false
       }
     }
   }

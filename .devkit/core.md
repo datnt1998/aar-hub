@@ -43,7 +43,8 @@ Monorepo pnpm workspace + Turborepo (`turbo.json`), Node 22 (`.nvmrc`), pnpm 10.
 
 | Đường dẫn | Nội dung |
 |---|---|
-| `apps/api` | NestJS 12 (ESM). Module theo tính năng trong `src/<feature>/`. Test: Vitest, `src/**/*.spec.ts` và `test/**/*.e2e-spec.ts` |
+| `apps/api` | NestJS 12 (ESM), Zod, PostgreSQL + Drizzle. Module theo tính năng trong `src/<feature>/`. Test: Vitest, `src/**/*.spec.ts` và `test/**/*.e2e-spec.ts` (PGlite) |
+| `apps/api/drizzle/` | Migration SQL sinh từ `src/db/schema.ts`, không sửa tay |
 | `apps/api/openapi.json` | **Tài liệu interface** của API, sinh từ code |
 | `apps/web` | React 19 + Vite + Tailwind v4. Test: Vitest `src/**/*.test.tsx`, Playwright `e2e/*.spec.ts` |
 | `apps/web/src/api/client.ts` | Client có type gọi API (`openapi-fetch`) |
@@ -57,7 +58,7 @@ Chạy ở gốc repo. Lệnh qua `turbo` có cache; bỏ cache bằng `--force`
 | Việc | Lệnh |
 |---|---|
 | Cài | `pnpm install` (CI: `pnpm install --frozen-lockfile`). Dependency có build script phải khai trong `pnpm-workspace.yaml` (`onlyBuiltDependencies` / `ignoredBuiltDependencies`) |
-| Kiểm toàn bộ (trước khi báo xong) | `pnpm verify` = `format:check`, `lint`, `typecheck`, `test`, `e2e`, `build`, `openapi:check` |
+| Kiểm toàn bộ (trước khi báo xong) | `pnpm verify` = `format:check`, `lint`, `typecheck`, `test`, `e2e`, `build`, `openapi:check`, `db:check` |
 | Format | `pnpm format` (sửa), `pnpm format:check` (kiểm). Prettier bỏ qua `*.md` và file sinh |
 | Lint (lint có type, gồm `devkit:check`) | `pnpm lint`. Không tắt luật bằng comment để qua lint; luật sai thì đổi cấu hình qua PR |
 | Typecheck | `pnpm typecheck` |
@@ -66,6 +67,7 @@ Chạy ở gốc repo. Lệnh qua `turbo` có cache; bỏ cache bằng `--force`
 | Build | `pnpm build` |
 | Xuất tài liệu interface | `pnpm openapi` (ghi `apps/api/openapi.json` rồi sinh `apps/web/src/api/schema.gen.ts`) |
 | Kiểm tài liệu interface không lệch | `pnpm openapi:check` |
+| Sinh migration sau khi đổi bảng | `pnpm --filter api db:generate` (kiểm: `pnpm db:check`; áp vào database: `DATABASE_URL=… pnpm --filter api db:migrate`) |
 | Liệt kê test theo AC | `pnpm ac`, `pnpm ac --json`, `pnpm ac AC-X-DEMO-01` |
 | Kiểm bộ luật `.devkit` | `pnpm devkit:check` |
 | Chạy dev | `pnpm --filter api start:dev` và `pnpm --filter web dev` (Vite proxy `/api` → `http://localhost:3000`, đổi bằng `API_URL`) |
@@ -86,12 +88,13 @@ Chạy ở gốc repo. Lệnh qua `turbo` có cache; bỏ cache bằng `--force`
   - Câu hỏi chặn một phần việc: commit các AC không bị ảnh hưởng (kèm test), rồi báo `spec_gap` (Ops) hoặc hỏi người (chat).
   - Câu hỏi không chặn: làm xong, ghi câu hỏi vào `questions`.
 
-## Chưa có database
+## Hạ tầng đã chọn và chưa chọn
 
-Repo chưa chọn database, ORM, auth hay hạ tầng deploy. Không tự thêm. Ticket cần lưu dữ liệu bền vững thì dừng: khi Ops gọi, báo `error` với `"error": "cần chọn database"`; khi chat, nói với người.
+- Đã chọn: PostgreSQL + Drizzle ([ADR 0003](decisions/0003-postgres-drizzle.md)). Ticket cần lưu dữ liệu tự thêm bảng và migration theo [.devkit/rules/api.md](rules/api.md).
+- Chưa chọn: auth (đăng nhập, phiên, 2FA) và hạ tầng deploy. Không tự thêm. Phần ticket cần xác định người gọi hay phân quyền theo người dùng là câu hỏi chặn ("cần chọn auth"): làm các AC còn lại theo mục Ranh giới ticket.
 
 ## Luật chung
 
 - Làm trên branch hoặc worktree riêng, không commit hay push lên `main` (branch protection chặn). Merge do người duyệt (Đạt, gate G3 trên Telegram).
 - Không đọc repo khác (aar-ui, aar-docs, aar-ops). Mọi trao đổi qua thẻ `aar/1` do Ops chuyển.
-- Không đổi stack. Không chọn database, ORM, auth, hạ tầng deploy. Thêm dependency runtime mới hay đổi một quyết định trong `.devkit/decisions/` cần ADR do người duyệt: khi chat thì hỏi người, khi Ops gọi thì báo `needs_input`.
+- Không đổi stack. Không tự chọn auth hay hạ tầng deploy. Thêm dependency runtime mới hay đổi một quyết định trong `.devkit/decisions/` cần ADR do người duyệt: khi chat thì hỏi người, khi Ops gọi thì báo `needs_input`.

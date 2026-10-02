@@ -87,3 +87,6 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup
       - run: pnpm openapi:check
+      # Same job checks the other generated artifact: SQL migrations against src/db/schema.ts.
+      - if: ${{ !cancelled() }}
+        run: pnpm db:check

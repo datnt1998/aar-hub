@@ -7,15 +7,18 @@ import { fileURLToPath } from 'node:url';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from '../app.module.js';
-import { configureApp } from '../app.setup.js';
+import { APP_OPTIONS, configureApp } from '../app.setup.js';
+import { withProblemResponses } from '../common/http/openapi.js';
 
 const target = fileURLToPath(new URL('../../openapi.json', import.meta.url));
 const check = process.argv.includes('--check');
 
-const app = configureApp(await NestFactory.create(AppModule, { logger: false }));
-const document = SwaggerModule.createDocument(
-  app,
-  new DocumentBuilder().setTitle('aar-hub API').setVersion('0.0.0').build(),
+const app = configureApp(await NestFactory.create(AppModule, { ...APP_OPTIONS, logger: false }));
+const document = withProblemResponses(
+  SwaggerModule.createDocument(app, new DocumentBuilder().setTitle('aar-hub API').setVersion('0.0.0').build(), {
+    // `Health_check` rather than `HealthController_check`; the controller prefix keeps ids unique.
+    operationIdFactory: (controllerKey, methodKey) => `${controllerKey.replace(/Controller$/, '')}_${methodKey}`,
+  }),
 );
 await app.close();
 

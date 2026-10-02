@@ -12,6 +12,6 @@ Body PR theo đúng các mục của [.github/pull_request_template.md](../../.g
 
 - **Ticket:** mã ticket và use case.
 - **AC:** output `pnpm ac` cho tiền tố AC của ticket; AC nào chưa đạt và vì sao.
-- **Interface** (ticket BE): endpoint, DTO, vị trí trong `apps/api/openapi.json`.
+- **Interface** (ticket BE): endpoint, schema, mã lỗi, vị trí trong `apps/api/openapi.json`.
 - **Quyết định và câu hỏi:** dependency mới, ADR, câu hỏi còn mở.
 - **Đã chạy:** đánh dấu lệnh kiểm và review đã chạy thật; chưa chạy thì để trống và nói lý do.

@@ -2,3 +2,4 @@ pnpm-lock.yaml
 **/*.md
 apps/api/openapi.json
 apps/web/src/api/schema.gen.ts
+apps/api/drizzle/

@@ -16,6 +16,8 @@ Agent không tự chấp nhận ADR: soạn ADR ở trạng thái `Đề xuất`
 |---|---|---|
 | [0001](0001-devkit-va-cong-cu-phu-tro.md) | `.devkit/` là bộ luật duy nhất; AgentKit chỉ là công cụ phụ trợ, không commit | Chấp nhận |
 | [0002](0002-cong-cu-kiem-cap-repo.md) | Bộ kiểm cấp repo: Prettier, lint có type, ghim Node/pnpm, Renovate, squash-only | Chấp nhận |
+| [0003](0003-postgres-drizzle.md) | Dữ liệu: PostgreSQL + Drizzle; test trên PGlite | Chấp nhận |
+| [0004](0004-hop-dong-http-cua-api.md) | Hợp đồng HTTP của API: Zod, Problem Details có `code`, response lọc theo schema | Chấp nhận |
 
 ## Mẫu
 
