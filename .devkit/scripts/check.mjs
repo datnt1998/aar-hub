@@ -3,8 +3,11 @@
  * pnpm devkit:check: keeps the agent rulebook in .devkit/ wired and free of local tool state.
  * - AGENTS.md as staged/committed imports .devkit/core.md and carries no AgentKit block, and its links resolve. The index
  *   is read, not the working tree, so a checkout where AgentKit wrote its local block still passes until someone stages it.
+ * - .github/instructions/devkit.instructions.md is committed as an always-apply rule (`applyTo: '**'`) pointing to
+ *   .devkit/core.md: omp gives subagents rules but not AGENTS.md, so this is how a subagent finds the rulebook.
  * - No file under .omp/ or .agentkit/ is tracked.
- * - Every relative Markdown link in AGENTS.md (index content), README.md and .devkit/**\/*.md (working tree) resolves.
+ * - Every relative Markdown link in AGENTS.md (index content), README.md, the instructions file and .devkit/**\/*.md
+ *   (working tree) resolves.
  * - Every rule and workflow file is routed from core.md; every ADR is listed in decisions/README.md.
  */
 
@@ -38,6 +41,23 @@ if (!agents.split('\n').some((line) => line.trim() === '@.devkit/core.md')) {
 }
 if (agents.includes('AGENTKIT')) {
   errors.push('AGENTS.md: AgentKit block is staged/committed; keep it local (see .devkit/README.md)');
+}
+
+// Read from the index like AGENTS.md (what will be committed), and also required on disk: a tracked pointer missing
+// from the checkout is never local tool state.
+const POINTER = '.github/instructions/devkit.instructions.md';
+const pointerTracked = (git('ls-files', '--', POINTER) ?? '').trim() !== '';
+const pointer = pointerTracked ? (git('show', `:${POINTER}`) ?? '') : '';
+// omp makes a github instructions rule always-apply only when its frontmatter `applyTo` is `*`, `**` or `**/*`, and
+// demotes any rule with a TTSR key (`condition`, `astCondition`, `question`) to a stream trigger.
+const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(pointer)?.[1] ?? '';
+const alwaysApply = /^applyTo:\s*(['"]?)(\*|\*\*|\*\*\/\*)\1\s*(?:#.*)?$/m.test(frontmatter);
+const ttsr = /^(condition|astCondition|question):/m.test(frontmatter);
+const body = pointer.slice(pointer.indexOf(frontmatter) + frontmatter.length);
+if (!alwaysApply || ttsr || !body.includes('.devkit/core.md') || !existsSync(join(root, POINTER))) {
+  errors.push(
+    `${POINTER}: must exist and be committed as an always-apply rule (frontmatter \`applyTo: '**'\`, no condition/question keys) whose body points to .devkit/core.md; subagents read it instead of AGENTS.md`,
+  );
 }
 
 for (const file of (git('ls-files', '--', '.omp', '.agentkit') ?? '').split('\n').filter(Boolean)) {
@@ -87,7 +107,7 @@ function markdownFiles(dir) {
 // are read from the working tree.
 const docs = [
   { file: join(root, 'AGENTS.md'), text: agents },
-  ...[join(root, 'README.md'), ...markdownFiles(devkit)]
+  ...[join(root, 'README.md'), join(root, POINTER), ...markdownFiles(devkit)]
     .filter((file) => existsSync(file))
     .map((file) => ({ file, text: readFileSync(file, 'utf8') })),
 ];
