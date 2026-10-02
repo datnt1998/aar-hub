@@ -22,7 +22,9 @@ const git = (...args) => {
   try {
     return execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (error) {
-    const reason = String(error.stderr || error.message).trim().split('\n')[0];
+    const reason = String(error.stderr || error.message)
+      .trim()
+      .split('\n')[0];
     errors.push(`git ${args.join(' ')}: ${reason}`);
     return null;
   }
@@ -65,12 +67,12 @@ function stripCode(text) {
  */
 function links(text) {
   const targets = [];
-  for (const match of stripCode(text).matchAll(/\]\(\s*(?:<([^>]+)>|([^\s)]+))(?:\s+['"(][^)]*)?\s*\)|^\s*\[(?!\^)[^\]]+\]:\s*(\S+)/gm)) {
+  for (const match of stripCode(text).matchAll(
+    /\]\(\s*(?:<([^>]+)>|([^\s)]+))(?:\s+['"(][^)]*)?\s*\)|^\s*\[(?!\^)[^\]]+\]:\s*(\S+)/gm,
+  )) {
     targets.push(match[1] ?? match[2] ?? match[3]);
   }
-  return targets
-    .map((target) => target.split('#')[0])
-    .filter((target) => target && !/^[a-z]+:/i.test(target));
+  return targets.map((target) => target.split('#')[0]).filter((target) => target && !/^[a-z]+:/i.test(target));
 }
 
 function markdownFiles(dir) {
