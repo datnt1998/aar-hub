@@ -43,11 +43,21 @@ if (agents.includes('AGENTKIT')) {
   errors.push('AGENTS.md: AgentKit block is staged/committed; keep it local (see .devkit/README.md)');
 }
 
+// Read from the index like AGENTS.md (what will be committed), and also required on disk: a tracked pointer missing
+// from the checkout is never local tool state.
 const POINTER = '.github/instructions/devkit.instructions.md';
 const pointerTracked = (git('ls-files', '--', POINTER) ?? '').trim() !== '';
 const pointer = pointerTracked ? (git('show', `:${POINTER}`) ?? '') : '';
-if (!/^applyTo:\s*['"]\*\*['"]\s*$/m.test(pointer) || !pointer.includes('.devkit/core.md')) {
-  errors.push(`${POINTER}: must be committed with \`applyTo: '**'\` and point to .devkit/core.md (subagents read it)`);
+// omp makes a github instructions rule always-apply only when its frontmatter `applyTo` is `*`, `**` or `**/*`, and
+// demotes any rule with a TTSR key (`condition`, `astCondition`, `question`) to a stream trigger.
+const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(pointer)?.[1] ?? '';
+const alwaysApply = /^applyTo:\s*(['"]?)(\*|\*\*|\*\*\/\*)\1\s*(?:#.*)?$/m.test(frontmatter);
+const ttsr = /^(condition|astCondition|question):/m.test(frontmatter);
+const body = pointer.slice(pointer.indexOf(frontmatter) + frontmatter.length);
+if (!alwaysApply || ttsr || !body.includes('.devkit/core.md') || !existsSync(join(root, POINTER))) {
+  errors.push(
+    `${POINTER}: must exist and be committed as an always-apply rule (frontmatter \`applyTo: '**'\`, no condition/question keys) whose body points to .devkit/core.md; subagents read it instead of AGENTS.md`,
+  );
 }
 
 for (const file of (git('ls-files', '--', '.omp', '.agentkit') ?? '').split('\n').filter(Boolean)) {

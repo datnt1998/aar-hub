@@ -5,7 +5,7 @@
 ## Cách nạp
 
 - `AGENTS.md` ở gốc chứa dòng `@.devkit/core.md`. omp mở rộng dòng đó thành nội dung `core.md` ở đầu mỗi phiên chính, kể cả phiên Ops trong worktree Orca.
-- **Subagent không được nạp `AGENTS.md`** (đã thử với omp: subagent chỉ nhận rule, và `@` trong rule không được mở rộng). Vì vậy `.github/instructions/devkit.instructions.md` là rule luôn áp dụng (`applyTo: '**'`), ngắn, bảo agent chưa thấy `core.md` trong context phải đọc `.devkit/core.md` trước khi làm. Không chép luật vào file đó: `core.md` vẫn là nguồn duy nhất.
+- **Subagent không được nạp `AGENTS.md`** (đã thử với omp: subagent chỉ nhận rule, và `@` trong rule không được mở rộng). Vì vậy `.github/instructions/devkit.instructions.md` là rule luôn áp dụng (`applyTo: '**'`), ngắn, bảo agent chưa thấy `core.md` trong context phải đọc `.devkit/core.md` trước khi làm. Không chép luật vào file đó: `core.md` vẫn là nguồn duy nhất. omp chỉ đọc rule này khi phiên mở ở gốc repo (Ops và người chat đều mở ở gốc); phiên mở trong thư mục con thì subagent của nó không có rule này.
 - `core.md` có bảng định tuyến: việc nào thì đọc file nào trong `rules/` và `workflows/`. Các file đó đọc khi cần, không nạp sẵn.
 
 ## Bố cục
