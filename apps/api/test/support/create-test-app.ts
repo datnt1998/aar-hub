@@ -75,6 +75,9 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<TestA
       moduleRef.createNestApplication<INestApplication<Server>>({ ...APP_OPTIONS, logger: ['error', 'warn'] }),
     );
     await app.init();
+    // Listen once so supertest reuses this address. Without it supertest opens a new random port per request, and on
+    // macOS that port can already belong to another local app, which answers the request instead of this one.
+    await app.listen(0, '127.0.0.1');
   } catch (error) {
     await moduleRef?.close().catch(() => undefined);
     await client.close();

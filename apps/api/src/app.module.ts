@@ -7,6 +7,7 @@ import { ClockModule } from './common/time/clock.js';
 import { envSchema } from './config/env.js';
 import { DbModule } from './db/db.module.js';
 import { HealthModule } from './health/health.module.js';
+import { PartnerApplicationsModule } from './partner-applications/partner-applications.module.js';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { HealthModule } from './health/health.module.js';
     ClockModule,
     DbModule,
     HealthModule,
+    PartnerApplicationsModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: ProblemFilter },

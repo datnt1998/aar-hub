@@ -20,6 +20,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/partner-applications/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tải lên một file đính kèm
+         * @description Bước trước khi nộp đơn. Dùng id trả về trong businessRegistration / otherDocuments. Không cần tài khoản. File pdf, jpg hoặc png, tối đa 10485760 byte (10 MB); loại khác trả lỗi PARTNER_APPLICATION_FILE_TYPE_NOT_ALLOWED.
+         */
+        post: operations["PartnerApplications_uploadAttachment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/partner-applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Nộp đơn đăng ký đối tác hình thức tổ chức
+         * @description Không cần tài khoản. Thành công: đơn ở SUBMITTED; email xác nhận gửi tới email liên hệ trong đơn, người nộp đơn không nhận thông báo trong AarHub; mọi admin nền tảng nhận email và thông báo trong AarHub. Trùng mã số thuế với đối tác hoặc đơn đang mở vẫn được nhận và phản hồi không có cảnh báo nào. Lỗi: không có đơn nào được tạo.
+         */
+        post: operations["PartnerApplications_submitOrganization"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -32,6 +72,73 @@ export interface components {
             status: "ok";
             /** @description Seconds since the API process started */
             uptimeSeconds: number;
+        };
+        AttachmentUploadRequest: {
+            /**
+             * Format: binary
+             * @description File pdf, jpg hoặc png, tối đa 10485760 byte (10 MB)
+             */
+            file: string;
+        };
+        Attachment: {
+            /** Format: uuid */
+            id: string;
+            /** @description Tên file gốc */
+            fileName: string;
+            /** @description Loại file nhận ra từ nội dung: application/pdf, image/jpeg hoặc image/png */
+            contentType: string;
+            sizeBytes: number;
+        };
+        OrganizationApplicationCreateRequest: {
+            /**
+             * @description Hình thức nộp đơn. Endpoint này chỉ nhận đơn "tổ chức"; "cá nhân" thuộc use case khác nên bị từ chối ở trường này.
+             * @enum {string}
+             */
+            legalForm: "tổ chức";
+            /** @description Họ tên người nộp đơn, 1–255 ký tự, không chỉ gồm khoảng trắng */
+            applicantName: string;
+            /**
+             * Format: email
+             * @description Email liên hệ, tối đa 254 ký tự. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu. Đúng một dấu @, có ít nhất một ký tự trước @, phần sau @ có dấu chấm nhưng không bắt đầu và không kết thúc bằng dấu chấm, không có khoảng trắng; so khớp không phân biệt hoa thường
+             */
+            contactEmail: string;
+            /** @description Tên pháp nhân, 1–255 ký tự, không chỉ gồm khoảng trắng */
+            legalName: string;
+            /** @description Mã số thuế: đúng 10 hoặc 13 chữ số, không gạch nối, không dấu cách ở giữa. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu */
+            taxCode: string;
+            /**
+             * Format: uuid
+             * @description Giấy đăng ký kinh doanh: id của đúng một file (pdf, jpg, png; tối đa 10 MB), lấy từ POST /api/partner-applications/attachments
+             */
+            businessRegistration: string;
+            /**
+             * @description Hồ sơ khác (tùy chọn): id của tối đa 2 file (pdf, jpg, png; tối đa 10 MB mỗi file). Cả đơn tối đa 3 file, mỗi file chỉ dùng một lần.
+             * @default []
+             */
+            otherDocuments: string[];
+            /**
+             * @description Chọn "chỉ bán hàng": không cần khai báo nghệ sĩ dự kiến. Mặc định false.
+             * @default false
+             */
+            salesOnly: boolean;
+            /** @description Tên nghệ sĩ dự kiến, 20 mục tối đa, mỗi tên 1–255 ký tự. Bắt buộc ít nhất một khi salesOnly là false. */
+            declaredArtists?: string[];
+        };
+        PartnerApplication: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            legalForm: "tổ chức" | "cá nhân";
+            /** @enum {string} */
+            status: "SUBMITTED";
+            /** Format: date-time */
+            submittedAt: string;
+            applicantName: string;
+            contactEmail: string;
+            legalName: string;
+            taxCode: string;
+            salesOnly: boolean;
+            declaredArtists: string[];
         };
         /** @description Error response (RFC 9457 Problem Details) with a required `code` */
         Problem: {
@@ -91,6 +198,106 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Health"];
+                };
+            };
+            /** @description Error (Problem Details) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    PartnerApplications_uploadAttachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["AttachmentUploadRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Attachment"];
+                };
+            };
+            /** @description PAYLOAD_TOO_LARGE */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"] & {
+                        /** @enum {string} */
+                        code: "PAYLOAD_TOO_LARGE";
+                    };
+                };
+            };
+            /** @description PARTNER_APPLICATION_FILE_TYPE_NOT_ALLOWED */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"] & {
+                        /** @enum {string} */
+                        code: "PARTNER_APPLICATION_FILE_TYPE_NOT_ALLOWED";
+                    };
+                };
+            };
+            /** @description Error (Problem Details) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    PartnerApplications_submitOrganization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrganizationApplicationCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerApplication"];
+                };
+            };
+            /** @description PARTNER_APPLICATION_BUSINESS_REGISTRATION_INVALID, PARTNER_APPLICATION_OTHER_DOCUMENTS_INVALID */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"] & {
+                        /** @enum {string} */
+                        code: "PARTNER_APPLICATION_BUSINESS_REGISTRATION_INVALID" | "PARTNER_APPLICATION_OTHER_DOCUMENTS_INVALID";
+                    };
                 };
             };
             /** @description Error (Problem Details) */
