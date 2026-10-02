@@ -37,7 +37,7 @@ export class PartnerApplicationsController {
     return this.applications.uploadAttachment(form.file);
   }
 
-  @Post('organization')
+  @Post()
   @ApiOperation({
     summary: 'Nộp đơn đăng ký đối tác hình thức tổ chức',
     description:

@@ -40,7 +40,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/partner-applications/organization": {
+    "/api/partner-applications": {
         parameters: {
             query?: never;
             header?: never;

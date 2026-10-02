@@ -78,7 +78,7 @@ describe('partner applications (organization)', () => {
   const post = (body: unknown) =>
     t
       .http()
-      .post('/api/partner-applications/organization')
+      .post('/api/partner-applications')
       .send(body as object);
   const submit = async (overrides: Record<string, unknown> = {}) => post(await validBody(overrides));
 
@@ -183,34 +183,56 @@ describe('partner applications (organization)', () => {
   });
 
   describe('required information', () => {
-    const missing = (field: string) => submit({ salesOnly: true, declaredArtists: undefined, [field]: undefined });
+    const missing = (field: string, value?: unknown) =>
+      submit({ salesOnly: true, declaredArtists: undefined, [field]: value });
+
+    /**
+     * The field left out, then sent empty: both are "not entered" for the user. Returns the error codes for the UI
+     * contract: a left-out input is `invalid_type`; an empty one is `emptyCode`.
+     */
+    async function expectNotEntered(field: string, emptyCode: string) {
+      const omitted = await missing(field);
+      expectInvalid(omitted, field);
+      expect(omitted.body.errors[0]?.code).toBe('invalid_type');
+      const empty = await missing(field, '');
+      expectInvalid(empty, field);
+      expect(empty.body.errors[0]?.code).toBe(emptyCode);
+      await expectNothingCreated();
+    }
 
     it('AC-PARTNER-ONBOARDING-01-03 example 1: missing applicant name is refused and nothing is created', async () => {
-      expectInvalid(await missing('applicantName'), 'applicantName');
-      await expectNothingCreated();
+      await expectNotEntered('applicantName', 'too_small');
     });
 
     it('AC-PARTNER-ONBOARDING-01-03 example 2: missing contact email is refused and nothing is created', async () => {
-      expectInvalid(await missing('contactEmail'), 'contactEmail');
-      await expectNothingCreated();
+      await expectNotEntered('contactEmail', 'too_small');
     });
 
     it('AC-PARTNER-ONBOARDING-01-03 example 3: missing legal name is refused and nothing is created', async () => {
-      expectInvalid(await missing('legalName'), 'legalName');
-      await expectNothingCreated();
+      await expectNotEntered('legalName', 'too_small');
     });
 
     it('AC-PARTNER-ONBOARDING-01-03 example 4: missing tax code is refused and nothing is created', async () => {
-      expectInvalid(await missing('taxCode'), 'taxCode');
-      await expectNothingCreated();
+      await expectNotEntered('taxCode', 'too_small');
     });
 
     it('AC-PARTNER-ONBOARDING-01-03 example 5: missing business registration is refused and nothing is created', async () => {
       const spareUpload = await upload('khong-dung.pdf');
-      expectInvalid(await missing('businessRegistration'), 'businessRegistration');
-      await expectNothingCreated();
+      await expectNotEntered('businessRegistration', 'invalid_format');
       const file = one(await t.db.select().from(attachments).where(eq(attachments.id, spareUpload)));
       expect(file.applicationId).toBeNull();
+    });
+
+    it('a missing declared artist list and another wrong input are reported together', async () => {
+      const res = await submit({ applicantName: undefined, salesOnly: false, declaredArtists: undefined });
+      expectInvalid(res, 'applicantName', 'declaredArtists');
+      await expectNothingCreated();
+
+      const duplicate = await upload('trung.pdf');
+      const both = await submit({ legalName: '', businessRegistration: duplicate, otherDocuments: [duplicate] });
+      expectInvalid(both, 'legalName', 'otherDocuments');
+      expectInvalid(await submit({ salesOnly: 'false', declaredArtists: [] }), 'salesOnly');
+      expectInvalid(await submit({ declaredArtists: ['  '] }), 'declaredArtists/0');
     });
 
     it('every missing required input is listed together', async () => {

@@ -131,7 +131,7 @@
         ]
       }
     },
-    "/api/partner-applications/organization": {
+    "/api/partner-applications": {
       "post": {
         "description": "Không cần tài khoản. Thành công: đơn ở SUBMITTED; email xác nhận gửi tới email liên hệ trong đơn, người nộp đơn không nhận thông báo trong AarHub; mọi admin nền tảng nhận email và thông báo trong AarHub. Trùng mã số thuế với đối tác hoặc đơn đang mở vẫn được nhận và phản hồi không có cảnh báo nào. Lỗi: không có đơn nào được tạo.",
         "operationId": "PartnerApplications_submitOrganization",

@@ -92,29 +92,38 @@ export const OrganizationApplicationCreateSchema = z
         description: `Tên nghệ sĩ dự kiến, ${MAX_DECLARED_ARTISTS} mục tối đa, mỗi tên 1–255 ký tự. Bắt buộc ít nhất một khi salesOnly là false.`,
       }),
   })
-  .check((ctx) => {
-    const { salesOnly, declaredArtists, businessRegistration, otherDocuments } = ctx.value;
-    if (!salesOnly && declaredArtists.length === 0) {
-      ctx.issues.push({
-        code: 'too_small',
-        origin: 'array',
-        minimum: 1,
-        inclusive: true,
-        input: declaredArtists,
-        path: ['declaredArtists'],
-        message: 'At least one declared artist is required unless salesOnly is true',
-      });
-    }
-    const ids = [businessRegistration, ...otherDocuments].map((id) => id.toLowerCase());
-    if (new Set(ids).size !== ids.length) {
-      ctx.issues.push({
-        code: 'custom',
-        input: otherDocuments,
-        path: ['otherDocuments'],
-        message: 'Each file can be used once in an application',
-      });
-    }
-  })
+  // Cross-field rules run even when other inputs are wrong (`when`), so one answer lists every error. A key that failed
+  // its own check is absent from the value, so each rule reads only what is present and well-formed.
+  .superRefine(
+    (value, ctx) => {
+      const { salesOnly, declaredArtists, businessRegistration, otherDocuments } = value as Partial<
+        Record<keyof typeof value, unknown>
+      >;
+      if (salesOnly === false && Array.isArray(declaredArtists) && declaredArtists.length === 0) {
+        ctx.addIssue({
+          code: 'too_small',
+          origin: 'array',
+          minimum: 1,
+          inclusive: true,
+          input: declaredArtists,
+          path: ['declaredArtists'],
+          message: 'At least one declared artist is required unless salesOnly is true',
+        });
+      }
+      const ids = [businessRegistration, ...(Array.isArray(otherDocuments) ? (otherDocuments as unknown[]) : [])]
+        .filter((id): id is string => typeof id === 'string')
+        .map((id) => id.toLowerCase());
+      if (new Set(ids).size !== ids.length) {
+        ctx.addIssue({
+          code: 'custom',
+          input: otherDocuments,
+          path: ['otherDocuments'],
+          message: 'Each file can be used once in an application',
+        });
+      }
+    },
+    { when: () => true },
+  )
   .meta({ id: 'OrganizationApplicationCreateRequest' });
 
 export type OrganizationApplicationCreate = z.infer<typeof OrganizationApplicationCreateSchema>;
