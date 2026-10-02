@@ -3,7 +3,7 @@
 Đọc kèm: [.devkit/rules/api.md](../rules/api.md), [.devkit/rules/testing.md](../rules/testing.md), [.devkit/rules/git.md](../rules/git.md).
 
 1. **Đọc ticket.** Liệt kê AC, luật nghiệp vụ, phụ thuộc (ticket BE khác, interface có sẵn). Điểm thiếu hay mâu thuẫn: phân loại chặn/không chặn theo mục ranh giới ticket trong `.devkit/core.md`.
-2. **Kiểm điều kiện.** Ticket cần thứ repo chưa có (database, auth, dependency runtime mới) thì dừng phần đó theo `.devkit/core.md`.
+2. **Kiểm điều kiện.** Ticket cần lưu dữ liệu bền vững mà repo chưa chọn database thì dừng phần đó (Ops báo `error` "cần chọn database", chat nói người — `.devkit/core.md` mục Chưa có database; auth, ORM, deploy cũng chưa chọn, không tự thêm). Cần thêm dependency runtime mới hay đổi quyết định thì cần ADR: chat hỏi người, Ops báo `needs_input` (mục Luật chung).
 3. **Làm tiếp ticket đã có branch/PR:** đọc `git log origin/main..HEAD` và PR hiện tại (`gh pr view`) trước, chỉ làm phần còn thiếu.
 4. **Code** theo [.devkit/rules/api.md](../rules/api.md): module tính năng, DTO và response (kể cả lỗi) khai báo đủ cho OpenAPI.
 5. **Test** từng AC trong phạm vi, mỗi AC có test mang mã AC đi qua đúng lớp AC mô tả ([.devkit/rules/testing.md](../rules/testing.md)). Kiểm `pnpm ac` thấy đủ mã.
