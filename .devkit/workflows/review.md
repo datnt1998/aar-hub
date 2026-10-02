@@ -4,8 +4,8 @@
 
 ## Ai review
 
-- Phiên khác với phiên đã code: subagent `reviewer` hoặc một session riêng không mang ngữ cảnh code. Không tự review trong cùng mạch đã viết code.
-- Người code giao cho reviewer: nội dung ticket (AC, luật nghiệp vụ), phạm vi diff (`git diff origin/main...HEAD`), output `pnpm ac`, và đường dẫn file này. Không giao lời giải thích về cách đã làm.
+- Phiên khác với phiên đã code: subagent (`reviewer`; không chạy được thì `task`) hoặc một session riêng không mang ngữ cảnh code. Không tự review trong cùng mạch đã viết code.
+- Người code giao cho reviewer: nội dung ticket (AC, luật nghiệp vụ), phạm vi diff (`git diff origin/main...HEAD`), output `pnpm ac`, đường dẫn `.devkit/core.md` và file này. Không giao lời giải thích về cách đã làm.
 
 ## Kiểm gì
 

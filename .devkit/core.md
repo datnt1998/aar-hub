@@ -99,3 +99,4 @@ Chạy ở gốc repo. Lệnh qua `turbo` có cache; bỏ cache bằng `--force`
 - Làm trên branch hoặc worktree riêng, không commit hay push lên `main` (branch protection chặn). Merge do người duyệt (Đạt, gate G3 trên Telegram).
 - Không đọc repo khác (aar-ui, aar-docs, aar-ops). Mọi trao đổi qua thẻ `aar/1` do Ops chuyển.
 - Không đổi stack. Không tự chọn auth hay hạ tầng deploy. Thêm dependency runtime mới hay đổi một quyết định trong `.devkit/decisions/` cần ADR do người duyệt: khi chat thì hỏi người, khi Ops gọi thì báo `needs_input`.
+- Giao việc cho subagent: subagent không được nạp `AGENTS.md`, chỉ nhận rule trỏ tới `.devkit/core.md`. Trong task ghi rõ việc, các file `.devkit/` phải đọc (theo bảng định tuyến) và kết quả cần trả.
