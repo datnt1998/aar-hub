@@ -128,9 +128,9 @@ describe('partner applications: resubmitting within 1 minute', () => {
     expect(await t.db.select().from(notifications)).toEqual(notificationsAfterFirst);
   });
 
-  // The duplicate warning to admins that AC-PARTNER-ONBOARDING-26-04 also asks for has no defined channel or content
-  // yet (open question to docs), so this test covers the rest of that AC and does not carry its code.
-  it('the same organization application 2 minutes later is a new SUBMITTED application, announced to admins like any other', async () => {
+  // Q-PARTNER-ONBOARDING-150: admins see the duplicate tax code on the application detail screen (UC-02); this ticket
+  // keeps the tax code on the new application and adds no warning to the usual new-application email or notification.
+  it('AC-PARTNER-ONBOARDING-26-04 the same organization application 2 minutes later is a new SUBMITTED application with the same tax code, announced to admins like any other', async () => {
     const [admin] = await t.db
       .insert(accounts)
       .values({ email: 'admin@aar.vn', isPlatformAdmin: true })
@@ -149,12 +149,26 @@ describe('partner applications: resubmitting within 1 minute', () => {
     const submitted = await submittedApplications();
     expect(submitted.map((row) => row.id).sort()).toEqual([first.id, second.id].sort());
     expect(submitted.map((row) => row.taxCode)).toEqual(['0312345678', '0312345678']);
-    // The admin gets the usual new-application notification for the second application, nothing more.
-    const forAdmin = (await t.db.select().from(notifications)).filter((row) => row.applicationId === second.id);
-    expect(forAdmin.map((row) => [row.accountId, row.kind])).toEqual([[admin?.id, 'APPLICATION_NEW_FOR_ADMIN']]);
     expect((await confirmationEmails()).map((email) => email.applicationId).sort()).toEqual(
       [first.id, second.id].sort(),
     );
+    // Each application gets the same single new-application notice and email for the admin, without any warning.
+    const adminNotices = async (applicationId: string) => {
+      const inApp = (await t.db.select().from(notifications)).filter((row) => row.applicationId === applicationId);
+      const emails = (await t.db.select().from(emailOutbox)).filter(
+        (row) => row.applicationId === applicationId && row.kind === 'APPLICATION_NEW_FOR_ADMIN',
+      );
+      return {
+        inApp: inApp.map((row) => [row.accountId, row.kind, row.message]),
+        emails: emails.map((row) => [row.toEmail, row.subject, row.body]),
+      };
+    };
+    const forSecond = await adminNotices(second.id);
+    expect(forSecond.inApp.map(([accountId, kind]) => [accountId, kind])).toEqual([
+      [admin?.id, 'APPLICATION_NEW_FOR_ADMIN'],
+    ]);
+    expect(forSecond.emails.map(([toEmail]) => toEmail)).toEqual(['admin@aar.vn']);
+    expect(forSecond).toEqual(await adminNotices(first.id));
   });
 
   it('AC-PARTNER-ONBOARDING-26-05 the same tax code with another contact email 20 seconds later is a separate application', async () => {
