@@ -20,7 +20,9 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-      - run: pnpm lint
+      - run: pnpm format:check
+      - if: ${{ !cancelled() }}
+        run: pnpm lint
 
   typecheck:
     runs-on: ubuntu-latest

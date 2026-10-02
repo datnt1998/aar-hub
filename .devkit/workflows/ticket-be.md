@@ -8,7 +8,7 @@
 4. **Code** theo [.devkit/rules/api.md](../rules/api.md): module tính năng, DTO và response (kể cả lỗi) khai báo đủ cho OpenAPI.
 5. **Test** từng AC trong phạm vi, mỗi AC có test mang mã AC đi qua đúng lớp AC mô tả ([.devkit/rules/testing.md](../rules/testing.md)). Kiểm `pnpm ac` thấy đủ mã.
 6. **Interface.** `pnpm openapi`, commit `apps/api/openapi.json` và `apps/web/src/api/schema.gen.ts`.
-7. **Kiểm.** `pnpm lint && pnpm typecheck && pnpm test && pnpm e2e && pnpm build && pnpm openapi:check` xanh.
+7. **Kiểm.** `pnpm verify` xanh.
 8. **Review độc lập** theo [.devkit/workflows/review.md](review.md). Sửa lỗi chặn, chạy lại bước 7.
 9. **Commit, push, PR** theo [.devkit/rules/git.md](../rules/git.md).
 10. **Báo kết quả.** Khi Ops gọi: ghi result theo [.devkit/workflows/ops-session.md](ops-session.md), kèm `handoff` interface. Khi chat: báo người link PR, AC → test, interface, câu hỏi còn mở.

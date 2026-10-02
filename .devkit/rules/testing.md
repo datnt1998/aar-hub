@@ -18,5 +18,5 @@
 
 ## Luật chung
 
-- Không xoá, `.skip` hay nới test để CI xanh. Test sai thì sửa test và nói lý do trong PR.
+- Không xoá, `.skip` hay nới test để CI xanh (lint cấm `it/test/describe.skip`). Test sai thì sửa test và nói lý do trong PR.
 - E2E chạy song song nhiều worktree: đổi cổng bằng `E2E_API_PORT` / `E2E_WEB_PORT`. Playwright không dùng lại server lạ đang chiếm cổng.
