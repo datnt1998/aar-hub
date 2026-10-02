@@ -3,8 +3,11 @@
  * pnpm devkit:check: keeps the agent rulebook in .devkit/ wired and free of local tool state.
  * - AGENTS.md as staged/committed imports .devkit/core.md and carries no AgentKit block, and its links resolve. The index
  *   is read, not the working tree, so a checkout where AgentKit wrote its local block still passes until someone stages it.
+ * - .github/instructions/devkit.instructions.md is committed as an always-apply rule (`applyTo: '**'`) pointing to
+ *   .devkit/core.md: omp gives subagents rules but not AGENTS.md, so this is how a subagent finds the rulebook.
  * - No file under .omp/ or .agentkit/ is tracked.
- * - Every relative Markdown link in AGENTS.md (index content), README.md and .devkit/**\/*.md (working tree) resolves.
+ * - Every relative Markdown link in AGENTS.md (index content), README.md, the instructions file and .devkit/**\/*.md
+ *   (working tree) resolves.
  * - Every rule and workflow file is routed from core.md; every ADR is listed in decisions/README.md.
  */
 
@@ -38,6 +41,13 @@ if (!agents.split('\n').some((line) => line.trim() === '@.devkit/core.md')) {
 }
 if (agents.includes('AGENTKIT')) {
   errors.push('AGENTS.md: AgentKit block is staged/committed; keep it local (see .devkit/README.md)');
+}
+
+const POINTER = '.github/instructions/devkit.instructions.md';
+const pointerTracked = (git('ls-files', '--', POINTER) ?? '').trim() !== '';
+const pointer = pointerTracked ? (git('show', `:${POINTER}`) ?? '') : '';
+if (!/^applyTo:\s*['"]\*\*['"]\s*$/m.test(pointer) || !pointer.includes('.devkit/core.md')) {
+  errors.push(`${POINTER}: must be committed with \`applyTo: '**'\` and point to .devkit/core.md (subagents read it)`);
 }
 
 for (const file of (git('ls-files', '--', '.omp', '.agentkit') ?? '').split('\n').filter(Boolean)) {
@@ -87,7 +97,7 @@ function markdownFiles(dir) {
 // are read from the working tree.
 const docs = [
   { file: join(root, 'AGENTS.md'), text: agents },
-  ...[join(root, 'README.md'), ...markdownFiles(devkit)]
+  ...[join(root, 'README.md'), join(root, POINTER), ...markdownFiles(devkit)]
     .filter((file) => existsSync(file))
     .map((file) => ({ file, text: readFileSync(file, 'utf8') })),
 ];
