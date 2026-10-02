@@ -8,7 +8,7 @@
 
 - AC-PARTNER-ONBOARDING-01-10: mọi admin nền tảng nhận email và thông báo trong AarHub khi có đơn mới. Cần biết ai là admin và gắn thông báo trong AarHub vào một tài khoản.
 - aar-docs chốt (Q-PARTNER-ONBOARDING-144): tài khoản admin thuộc ticket đăng nhập chung, không thuộc BE-01. Repo chưa chọn auth.
-- aar-docs trả lời (Q-PARTNER-ONBOARDING-145, "Đồng ý"): trước khi có ticket đăng nhập chung, BE-01 được giữ danh sách admin tạm để báo có đơn mới. Câu trả lời chỉ là "Đồng ý" cho câu hỏi hai vế (giữ danh sách admin tạm hay bỏ việc báo admin), nên chưa rõ chọn vế nào; PR hiểu là giữ. Người duyệt PR xác nhận cách hiểu này và chấp nhận ADR ở G3: merge PR là chấp nhận ADR.
+- aar-docs trả lời Q-PARTNER-ONBOARDING-145 chỉ bằng "Đồng ý" cho câu hỏi hai vế (giữ danh sách admin tạm hay bỏ việc báo admin), nên chưa rõ chọn vế nào. Q-PARTNER-ONBOARDING-146 làm rõ: BE-01 giữ bảng `accounts` tạm theo ADR này để báo mọi admin có đơn mới (AC-01-10); ticket đăng nhập chung (Q-PARTNER-ONBOARDING-141 A) sau này tiếp quản bảng đó cùng khóa ngoại `notifications.account_id`; đây là làm rõ, không đổi spec v5. Chấp nhận ADR vẫn thuộc người duyệt PR: merge PR là chấp nhận ADR.
 - Không có bảng nào thì AC-01-10 không kiểm được bằng test HTTP trên database thật, và `notifications.account_id` không có chỗ để trỏ tới.
 
 ## Các lựa chọn
@@ -26,4 +26,4 @@ Chọn 1. Bảng `accounts` chỉ là chỗ đọc tạm: chỉ `PartnerApplicat
 - Ticket đăng nhập tiếp quản bảng `accounts` và khóa ngoại `notifications.account_id`: viết migration đổi hoặc thay bảng, chuyển dữ liệu, và sửa `findPlatformAdmins` nếu vai trò admin đổi chỗ lưu.
 - Cho đến khi đó, AC-01-10 chỉ được chứng minh với admin chèn tay vào database; chưa có cách tạo admin trên môi trường thật.
 - Bảng `partners` cũng là bản tạm: BE-01 không đọc hay ghi bảng này, nó chỉ có để test AC-01-11. Cột và giá trị `status` là đoán; ticket đối tác tiếp quản bảng `partners` cùng các cột của nó (đổi hoặc thay bằng migration của ticket đó).
-- Người duyệt từ chối ADR này, hoặc Q-145 có nghĩa là bỏ việc báo admin, thì BE-01 chuyển sang lựa chọn 2: bỏ `accounts` và `notifications.account_id` khỏi migration, báo `spec_gap` cho AC-01-10.
+- Người duyệt từ chối ADR này thì BE-01 chuyển sang lựa chọn 2: bỏ `accounts` và `notifications.account_id` khỏi migration, báo `spec_gap` cho AC-01-10.
