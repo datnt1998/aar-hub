@@ -1,10 +1,16 @@
 import js from '@eslint/js';
 import { defineConfig, globalIgnores } from 'eslint/config';
+import playwright from 'eslint-plugin-playwright';
 import reactHooks from 'eslint-plugin-react-hooks';
+import testingLibrary from 'eslint-plugin-testing-library';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 const noSkip = 'Do not commit skipped tests; fix the test or raise a question (.devkit/rules/testing.md).';
+const onlyApiClient = {
+  name: 'openapi-fetch',
+  message: 'Call the API through `api`/`$api` from src/api/client.ts (.devkit/rules/web.md).',
+};
 
 export default defineConfig(
   globalIgnores(['**/dist/', '**/test-results/', '**/playwright-report/', '**/*.gen.ts']),
@@ -65,6 +71,11 @@ export default defineConfig(
             'MemberExpression[property.name=/^(skip|skipIf|runIf|fixme)$/][object.type="CallExpression"][object.callee.type="MemberExpression"][object.callee.object.name=/^(it|test|describe|suite)$/]',
           message: noSkip,
         },
+        {
+          selector:
+            'CallExpression[callee.property.name=/^(toMatchSnapshot|toMatchInlineSnapshot|toMatchFileSnapshot|toThrowErrorMatchingSnapshot|toThrowErrorMatchingInlineSnapshot)$/]',
+          message: 'Assert the behavior that matters instead of a snapshot (.devkit/rules/testing.md).',
+        },
       ],
     },
   },
@@ -94,5 +105,55 @@ export default defineConfig(
     languageOptions: { globals: globals.browser },
     extends: [reactHooks.configs.flat['recommended-latest']],
     rules: { 'react-hooks/exhaustive-deps': 'error' },
+  },
+  {
+    files: ['apps/web/src/**/*.{ts,tsx}'],
+    ignores: ['apps/web/src/api/**', 'apps/web/src/**/*.test.{ts,tsx}', 'apps/web/src/test/**'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        { name: 'fetch', message: 'Call the API through `api`/`$api` from src/api/client.ts (.devkit/rules/web.md).' },
+      ],
+      'no-restricted-properties': [
+        'error',
+        ...['window', 'globalThis', 'self'].map((object) => ({
+          object,
+          property: 'fetch',
+          message: 'Call the API through `api`/`$api` from src/api/client.ts (.devkit/rules/web.md).',
+        })),
+      ],
+      'no-restricted-imports': ['error', { paths: [onlyApiClient] }],
+    },
+  },
+  {
+    // Presentational primitives: no data, routing or screen code, so they can be swapped for a UI library.
+    files: ['apps/web/src/ui/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [onlyApiClient],
+          patterns: [
+            {
+              regex: '(^|/)(api|app|features|routes)(/|$)',
+              message: 'src/ui only holds presentational primitives (.devkit/rules/web.md).',
+            },
+            {
+              regex: '^@tanstack/',
+              message: 'src/ui only holds presentational primitives (.devkit/rules/web.md).',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['apps/web/src/**/*.test.{ts,tsx}'],
+    extends: [testingLibrary.configs['flat/react']],
+  },
+  {
+    files: ['apps/web/e2e/**/*.ts'],
+    extends: [playwright.configs['flat/recommended']],
+    rules: { 'playwright/no-skipped-test': 'error', 'playwright/no-wait-for-timeout': 'error' },
   },
 );
