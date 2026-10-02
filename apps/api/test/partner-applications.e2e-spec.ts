@@ -8,19 +8,35 @@ import {
   partnerApplications,
   partners,
 } from '../src/db/schema.js';
-import {
-  AttachmentSchema,
-  PartnerApplicationSchema,
-} from '../src/partner-applications/partner-applications.schemas.js';
+import { MalwareScanner } from '../src/malware-scan/malware-scanner.js';
+import { PartnerApplicationSchema } from '../src/partner-applications/partner-applications.schemas.js';
 import { createTestApp, type TestApp } from './support/create-test-app.js';
+import { EICAR, type FakeClamd, startFakeClamd } from './support/fake-clamd.js';
 
 const MB = 1024 * 1024;
 const PDF = Buffer.from('%PDF-1.4 demo');
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('demo')]);
 const JPG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from('demo')]);
+const GIF = Buffer.from('GIF89a demo');
+/** A .docx is a zip archive. */
+const DOCX = Buffer.concat([
+  Buffer.from([0x50, 0x4b, 0x03, 0x04]),
+  Buffer.from('[Content_Types].xml word/document.xml'),
+]);
+/** A Windows program starts with MZ. */
+const EXE = Buffer.from('MZ\x90\x00 This program cannot be run in DOS mode.');
 
-/** A pdf of exactly `size` bytes. */
-const pdfOfSize = (size: number) => Buffer.concat([PDF, Buffer.alloc(size - PDF.length, 1)]);
+/** `content` padded to exactly `size` bytes. */
+const ofSize = (content: Buffer, size: number) => Buffer.concat([content, Buffer.alloc(size - content.length, 1)]);
+
+interface Upload {
+  filename: string;
+  content: Buffer;
+}
+const file = (filename: string, content: Buffer = PDF): Upload => ({ filename, content });
+
+/** A form value: text, repeated text, a boolean sent as "true"/"false", or files. `undefined` leaves the field out. */
+type FormValue = string | string[] | boolean | Upload | Upload[] | undefined;
 
 /** The only row of a query that must have returned one. */
 function one<T>(rows: T[]): T {
@@ -33,40 +49,39 @@ function one<T>(rows: T[]): T {
 
 describe('partner applications (organization)', () => {
   let t: TestApp;
+  let clamd: FakeClamd;
 
   beforeAll(async () => {
-    t = await createTestApp();
+    clamd = await startFakeClamd();
+    t = await createTestApp({
+      override: (builder) =>
+        builder
+          .overrideProvider(MalwareScanner)
+          .useValue(new MalwareScanner({ host: '127.0.0.1', port: clamd.port, timeoutMs: 1000 })),
+    });
   });
   afterAll(async () => {
     await t.close();
+    await clamd.close();
   });
   beforeEach(async () => {
     await t.reset();
+    clamd.mode = 'scan';
+    clamd.scanned = [];
   });
 
-  async function upload(fileName = 'gpkd.pdf', content: Buffer = PDF): Promise<string> {
-    const res = await t
-      .http()
-      .post('/api/partner-applications/attachments')
-      .attach('file', content, { filename: fileName })
-      .expect(201);
-    return AttachmentSchema.parse(res.body).id;
-  }
-
-  /** A complete application body; pass `undefined` to leave a field out. */
-  async function validBody(overrides: Record<string, unknown> = {}) {
-    return {
-      legalForm: 'tổ chức',
-      applicantName: 'Trần Thị Bích',
-      contactEmail: 'b@y.com',
-      legalName: 'Công ty TNHH Âm Nhạc Sao',
-      taxCode: '0312345678',
-      businessRegistration: await upload(),
-      salesOnly: false,
-      declaredArtists: ['Nghệ sĩ Một'],
-      ...overrides,
-    };
-  }
+  /** A complete application; pass `undefined` to leave a field out. */
+  const validForm = (overrides: Record<string, FormValue> = {}): Record<string, FormValue> => ({
+    legalForm: 'tổ chức',
+    applicantName: 'Trần Thị Bích',
+    contactEmail: 'b@y.com',
+    legalName: 'Công ty TNHH Âm Nhạc Sao',
+    taxCode: '0312345678',
+    businessRegistration: file('gpkd.pdf'),
+    salesOnly: false,
+    declaredArtists: ['Nghệ sĩ Một'],
+    ...overrides,
+  });
 
   /** Awaits a response and checks its status; returns it for further assertions. */
   async function expectStatus<T extends { status: number }>(status: number, response: PromiseLike<T>): Promise<T> {
@@ -75,12 +90,20 @@ describe('partner applications (organization)', () => {
     return res;
   }
 
-  const post = (body: unknown) =>
-    t
-      .http()
-      .post('/api/partner-applications')
-      .send(body as object);
-  const submit = async (overrides: Record<string, unknown> = {}) => post(await validBody(overrides));
+  /** Sends the form as multipart/form-data, in one request with its files. */
+  const post = (form: Record<string, FormValue>) => {
+    let req = t.http().post('/api/partner-applications');
+    for (const [name, value] of Object.entries(form)) {
+      for (const part of Array.isArray(value) ? value : value === undefined ? [] : [value]) {
+        req =
+          typeof part === 'object'
+            ? req.attach(name, part.content, { filename: part.filename })
+            : req.field(name, String(part));
+      }
+    }
+    return req;
+  };
+  const submit = (overrides: Record<string, FormValue> = {}) => post(validForm(overrides));
 
   /** The application in a 201 response, checked against the published response schema. */
   const created = (res: { body: unknown }) => PartnerApplicationSchema.parse(res.body);
@@ -91,30 +114,36 @@ describe('partner applications (organization)', () => {
       applications: await t.db.select().from(partnerApplications),
       emails: await t.db.select().from(emailOutbox),
       notifications: await t.db.select().from(notifications),
-      attachedFiles: (await t.db.select().from(attachments)).filter((file) => file.applicationId !== null),
+      files: await t.db.select().from(attachments),
     };
   }
 
-  /** The request was refused and nothing was stored, sent or attached. */
+  /** The request was refused and nothing was stored or sent: no application, no file. */
   async function expectNothingCreated() {
     const now = await state();
     expect(now.applications).toHaveLength(0);
     expect(now.emails).toHaveLength(0);
     expect(now.notifications).toHaveLength(0);
-    expect(now.attachedFiles).toHaveLength(0);
+    expect(now.files).toHaveLength(0);
   }
 
+  type Errors = { pointer: string; code: string }[];
+
   /** A 400 VALIDATION_FAILED that points at exactly these inputs (JSON pointers below `/body`). */
-  function expectInvalid(
-    res: { status: number; body: { code: string; errors: { pointer: string; code: string }[] } },
-    ...fields: string[]
-  ) {
+  function expectInvalid(res: { status: number; body: { code: string; errors: Errors } }, ...fields: string[]) {
     expect(res.status).toBe(400);
     expect(res.body.code).toBe('VALIDATION_FAILED');
     expect(res.body.errors.map((error) => error.pointer).sort()).toEqual(
       fields.map((field) => `/body/${field}`).sort(),
     );
   }
+
+  /** Errors of a response as `pointer code` lines, sorted, for exact comparison. */
+  const errorsOf = (res: { body: { errors: Errors } }) =>
+    res.body.errors.map((error) => `${error.pointer} ${error.code}`).sort();
+
+  const filesOf = (applicationId: string) =>
+    t.db.select().from(attachments).where(eq(attachments.applicationId, applicationId));
 
   async function seedApplication(status: ApplicationStatus, taxCode: string) {
     await t.db.insert(partnerApplications).values({
@@ -131,7 +160,7 @@ describe('partner applications (organization)', () => {
 
   describe('submitted status', () => {
     it('AC-PARTNER-ONBOARDING-01-01 example 1: one declared artist, no optional document, new legal entity', async () => {
-      const res = await expectStatus(201, submit({ declaredArtists: ['Nghệ sĩ Một'], otherDocuments: [] }));
+      const res = await expectStatus(201, submit({ declaredArtists: ['Nghệ sĩ Một'], otherDocuments: undefined }));
       expect(created(res)).toMatchObject({
         legalForm: 'tổ chức',
         status: 'SUBMITTED',
@@ -151,26 +180,25 @@ describe('partner applications (organization)', () => {
       );
       expect(row.status).toBe('SUBMITTED');
       expect(await t.db.select().from(partnerApplications)).toHaveLength(1);
+      expect((await filesOf(created(res).id)).map((stored) => stored.kind)).toEqual(['BUSINESS_REGISTRATION']);
     });
 
     it('AC-PARTNER-ONBOARDING-01-01 example 2: two declared artists, one optional document, new legal entity', async () => {
-      const other = await upload('phu-luc.pdf');
       const res = await expectStatus(
         201,
-        submit({ declaredArtists: ['Nghệ sĩ Một', 'Nghệ sĩ Hai'], otherDocuments: [other] }),
+        submit({ declaredArtists: ['Nghệ sĩ Một', 'Nghệ sĩ Hai'], otherDocuments: [file('phu-luc.pdf')] }),
       );
       expect(created(res)).toMatchObject({ status: 'SUBMITTED', declaredArtists: ['Nghệ sĩ Một', 'Nghệ sĩ Hai'] });
-      const files = await t.db
-        .select()
-        .from(attachments)
-        .where(eq(attachments.applicationId, created(res).id));
-      expect(files.map((file) => file.kind).sort()).toEqual(['BUSINESS_REGISTRATION', 'OTHER']);
-      expect(files.find((file) => file.kind === 'OTHER')?.id).toBe(other);
+      const stored = await filesOf(created(res).id);
+      expect(stored.map((row) => `${row.kind} ${row.fileName}`).sort()).toEqual([
+        'BUSINESS_REGISTRATION gpkd.pdf',
+        'OTHER phu-luc.pdf',
+      ]);
     });
 
     it('AC-PARTNER-ONBOARDING-01-01 example 3: sales only without artists, tax code shared with an ACTIVE partner', async () => {
       await t.db.insert(partners).values({ legalName: 'Đối tác cũ', taxCode: '0312345678', status: 'ACTIVE' });
-      const res = await expectStatus(201, submit({ salesOnly: true, declaredArtists: undefined, otherDocuments: [] }));
+      const res = await expectStatus(201, submit({ salesOnly: true, declaredArtists: undefined }));
       expect(created(res)).toMatchObject({ status: 'SUBMITTED', salesOnly: true, declaredArtists: [] });
       const row = one(
         await t.db
@@ -183,7 +211,7 @@ describe('partner applications (organization)', () => {
   });
 
   describe('required information', () => {
-    const missing = (field: string, value?: unknown) =>
+    const missing = (field: string, value?: FormValue) =>
       submit({ salesOnly: true, declaredArtists: undefined, [field]: value });
 
     /**
@@ -217,10 +245,9 @@ describe('partner applications (organization)', () => {
     });
 
     it('AC-PARTNER-ONBOARDING-01-03 example 5: missing business registration is refused and nothing is created', async () => {
-      const spareUpload = await upload('khong-dung.pdf');
-      await expectNotEntered('businessRegistration', 'invalid_format');
-      const file = one(await t.db.select().from(attachments).where(eq(attachments.id, spareUpload)));
-      expect(file.applicationId).toBeNull();
+      // No file part, or an empty text field in its place: both are "no file".
+      await expectNotEntered('businessRegistration', 'invalid_type');
+      expect(clamd.scanned).toHaveLength(0);
     });
 
     it('a missing declared artist list and another wrong input are reported together', async () => {
@@ -228,18 +255,20 @@ describe('partner applications (organization)', () => {
       expectInvalid(res, 'applicantName', 'declaredArtists');
       await expectNothingCreated();
 
-      const duplicate = await upload('trung.pdf');
-      const both = await submit({ legalName: '', businessRegistration: duplicate, otherDocuments: [duplicate] });
-      expectInvalid(both, 'legalName', 'otherDocuments');
-      expectInvalid(await submit({ salesOnly: 'false', declaredArtists: [] }), 'salesOnly');
+      expectInvalid(
+        await submit({ legalName: '', otherDocuments: [file('a.txt', Buffer.from('text'))] }),
+        'legalName',
+        'otherDocuments/0',
+      );
+      expectInvalid(await submit({ salesOnly: 'no', declaredArtists: undefined }), 'salesOnly');
       expectInvalid(await submit({ declaredArtists: ['  '] }), 'declaredArtists/0');
     });
 
-    it('a request without an object body is refused with 400, not a server error', async () => {
+    it('a request without a form body is refused with 400, not a server error', async () => {
       const none = await t.http().post('/api/partner-applications');
       expect(none.status).toBe(400);
       expect(none.body).toMatchObject({ code: 'VALIDATION_FAILED' });
-      for (const body of [null, 'text', [1], 5]) {
+      for (const body of [null, 'text', [1], 5, { applicantName: 'JSON' }]) {
         const res = await t
           .http()
           .post('/api/partner-applications')
@@ -332,6 +361,9 @@ describe('partner applications (organization)', () => {
       await t.db.insert(accounts).values({ email: 'admin@aar.vn', isPlatformAdmin: true });
       await expectStatus(400, submit({ taxCode: undefined }));
       await expectNothingCreated();
+      clamd.mode = 'error';
+      await expectStatus(503, submit());
+      await expectNothingCreated();
     });
   });
 
@@ -383,14 +415,14 @@ describe('partner applications (organization)', () => {
 
   describe('input limits', () => {
     /** Posts one input value and expects the application to be accepted; returns it. */
-    async function accepted(field: string, value: unknown, others: Record<string, unknown> = {}) {
+    async function accepted(field: string, value: FormValue, others: Record<string, FormValue> = {}) {
       const res = await submit({ [field]: value, ...others });
       expect(res.status, `${field} = ${JSON.stringify(value)?.slice(0, 40)} should be accepted`).toBe(201);
       return created(res);
     }
 
     /** Posts one input value and expects a 400 on exactly that input; returns the first error code. */
-    async function refused(field: string, value: unknown, pointer = field, others: Record<string, unknown> = {}) {
+    async function refused(field: string, value: FormValue, pointer = field, others: Record<string, FormValue> = {}) {
       const res = await submit({ [field]: value, ...others });
       expect(res.status, `${field} = ${JSON.stringify(value)?.slice(0, 40)} should be refused`).toBe(400);
       expectInvalid(res, pointer);
@@ -402,6 +434,7 @@ describe('partner applications (organization)', () => {
       await refused('legalForm', undefined);
       await refused('legalForm', 'cá nhân');
       await refused('legalForm', 'ORGANIZATION');
+      await refused('legalForm', ['tổ chức', 'tổ chức']);
     });
 
     it('applicantName is 1 to 255 characters, not only spaces, counted in Unicode NFC after trimming', async () => {
@@ -410,7 +443,6 @@ describe('partner applications (organization)', () => {
       expect(await refused('applicantName', 'a'.repeat(256))).toBe('too_big');
       expect(await refused('applicantName', '')).toBe('too_small');
       expect(await refused('applicantName', '   \t ')).toBe('too_small');
-      await refused('applicantName', 42);
       // 255 decomposed letters are 255 characters in NFC, stored composed.
       expect((await accepted('applicantName', 'e\u0301'.repeat(255))).applicantName).toBe('\u00e9'.repeat(255));
       await refused('applicantName', 'e\u0301'.repeat(256));
@@ -454,7 +486,6 @@ describe('partner applications (organization)', () => {
       ]) {
         expect(await refused('contactEmail', bad), bad).toBe('invalid_format');
       }
-      await refused('contactEmail', 7);
       // Matching ignores case, so the address is kept as typed; surrounding spaces are dropped.
       expect((await accepted('contactEmail', ' B@Y.COM ')).contactEmail).toBe('B@Y.COM');
     });
@@ -469,20 +500,19 @@ describe('partner applications (organization)', () => {
       for (const bad of ['031-2345678', '0312 345678', '03123456AB', '０３１２３４５６７８', '٠٣١٢٣٤٥٦٧٨']) {
         expect(await refused('taxCode', bad), bad).toBe('invalid_format');
       }
-      await refused('taxCode', 312345678);
       // Surrounding whitespace is dropped before the check and is not stored.
       expect((await accepted('taxCode', ' 0312345678 ')).taxCode).toBe('0312345678');
       expect((await accepted('taxCode', '0312345678123\t')).taxCode).toBe('0312345678123');
       await refused('taxCode', ' ');
     });
 
-    it('salesOnly is a boolean that defaults to false', async () => {
+    it('salesOnly is "true" or "false" and defaults to false', async () => {
       expect((await accepted('salesOnly', true, { declaredArtists: undefined })).salesOnly).toBe(true);
       expect((await accepted('salesOnly', false)).salesOnly).toBe(false);
       expect((await accepted('salesOnly', undefined)).salesOnly).toBe(false);
-      await refused('salesOnly', 'true');
-      await refused('salesOnly', 1);
-      await refused('salesOnly', null);
+      await refused('salesOnly', 'yes');
+      await refused('salesOnly', '1');
+      await refused('salesOnly', '');
     });
 
     it('declaredArtists holds 1 to 20 names of 1 to 255 characters each', async () => {
@@ -492,172 +522,331 @@ describe('partner applications (organization)', () => {
       expect(await refused('declaredArtists', names(21))).toBe('too_big');
       expect(await refused('declaredArtists', names(21), 'declaredArtists', { salesOnly: true })).toBe('too_big');
       expect(await refused('declaredArtists', [])).toBe('too_small');
-      expect((await accepted('declaredArtists', ['A'])).declaredArtists).toEqual(['A']);
+      // One form part is a list of one name.
+      expect((await accepted('declaredArtists', 'A')).declaredArtists).toEqual(['A']);
       await accepted('declaredArtists', ['n'.repeat(255)]);
       expect(await refused('declaredArtists', ['n'.repeat(256)], 'declaredArtists/0')).toBe('too_big');
       expect(await refused('declaredArtists', ['Hợp lệ', ''], 'declaredArtists/1')).toBe('too_small');
       expect(await refused('declaredArtists', ['   '], 'declaredArtists/0')).toBe('too_small');
-      await refused('declaredArtists', 'Nghệ sĩ Một');
-      await refused('declaredArtists', [{ name: 'Nghệ sĩ Một' }], 'declaredArtists/0');
       expect((await accepted('declaredArtists', ['  Nghệ sĩ Một  '])).declaredArtists).toEqual(['Nghệ sĩ Một']);
     });
 
     it('a member the ticket does not list is refused', async () => {
       await refused('plannedArtists', ['Nghệ sĩ Một']);
       await refused('applicantAccountId', '00000000-0000-4000-8000-000000000000');
+      await refused('passport', file('ho-chieu.pdf'));
     });
   });
 
-  describe('files', () => {
-    it('businessRegistration takes pdf, jpg or png', async () => {
+  describe('attached files', () => {
+    /** Every refusal of a file leaves nothing behind: no application, no file, no email, no notification. */
+    async function expectRefusedWith(
+      res: { status: number; body: { code: string; errors: Errors } },
+      ...errors: string[]
+    ) {
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe('VALIDATION_FAILED');
+      expect(errorsOf(res)).toEqual(errors.sort());
+      await expectNothingCreated();
+    }
+
+    it('AC-PARTNER-ONBOARDING-22-01 example 1: a 2 MB pdf registration, a 1 MB jpg and a 1 MB png are all stored', async () => {
+      const registration = ofSize(PDF, 2 * MB);
+      const jpg = ofSize(JPG, MB);
+      const png = ofSize(PNG, MB);
+      const res = await expectStatus(
+        201,
+        submit({
+          businessRegistration: file('gpkd.pdf', registration),
+          otherDocuments: [file('anh.jpg', jpg), file('anh.png', png)],
+        }),
+      );
+      expect(created(res).status).toBe('SUBMITTED');
+      const stored = await filesOf(created(res).id);
+      expect(stored.map((row) => [row.fileName, row.contentType, row.sizeBytes]).sort()).toEqual(
+        [
+          ['anh.jpg', 'image/jpeg', MB],
+          ['anh.png', 'image/png', MB],
+          ['gpkd.pdf', 'application/pdf', 2 * MB],
+        ].sort(),
+      );
+      expect(Buffer.from(one(stored.filter((row) => row.fileName === 'gpkd.pdf')).content).equals(registration)).toBe(
+        true,
+      );
+      expect(clamd.scanned).toHaveLength(3);
+    });
+
+    it('AC-PARTNER-ONBOARDING-22-01 example 2: a registration of exactly 10 MB, a 1 MB jpg and a 1 MB png are all stored', async () => {
+      const registration = ofSize(PDF, 10 * MB);
+      const res = await expectStatus(
+        201,
+        submit({
+          businessRegistration: file('gpkd.pdf', registration),
+          otherDocuments: [file('anh.jpg', ofSize(JPG, MB)), file('anh.png', ofSize(PNG, MB))],
+        }),
+      );
+      expect(created(res).status).toBe('SUBMITTED');
+      const stored = await filesOf(created(res).id);
+      expect(stored).toHaveLength(3);
+      const storedRegistration = one(stored.filter((row) => row.kind === 'BUSINESS_REGISTRATION'));
+      expect(storedRegistration.sizeBytes).toBe(10 * MB);
+      expect(Buffer.from(storedRegistration.content).equals(registration)).toBe(true);
+    }, 30_000);
+
+    it('AC-PARTNER-ONBOARDING-22-02 four valid clean pdf files, registration included, are refused for the file count', async () => {
+      const res = await submit({
+        businessRegistration: file('gpkd.pdf'),
+        otherDocuments: [file('a.pdf'), file('b.pdf'), file('c.pdf')],
+      });
+      await expectRefusedWith(res, '/body/otherDocuments too_big');
+      expect(clamd.scanned).toHaveLength(0);
+    });
+
+    it('AC-PARTNER-ONBOARDING-22-03 example 1: a Word file named .docx is refused for its format', async () => {
+      const res = await submit({ otherDocuments: [file('hop-dong.docx', DOCX)] });
+      await expectRefusedWith(res, '/body/otherDocuments/0 invalid_format');
+    });
+
+    it('AC-PARTNER-ONBOARDING-22-03 example 2: a Word file renamed to .pdf is refused for its format', async () => {
+      const res = await submit({ otherDocuments: [file('hop-dong.pdf', DOCX)] });
+      await expectRefusedWith(res, '/body/otherDocuments/0 invalid_format');
+    });
+
+    it('AC-PARTNER-ONBOARDING-22-03 example 3: a program renamed from .exe to .pdf is refused for its format', async () => {
+      const res = await submit({ businessRegistration: file('gpkd.pdf', EXE) });
+      await expectRefusedWith(res, '/body/businessRegistration/0 invalid_format');
+    });
+
+    describe('malware scan', () => {
+      async function expectScanRefusal(
+        res: { status: number; body: { code: string; errors: Errors } },
+        status: number,
+        code: string,
+        ...errors: string[]
+      ) {
+        expect(res.status).toBe(status);
+        expect(res.body.code).toBe(code);
+        expect(errorsOf(res)).toEqual(errors.sort());
+        await expectNothingCreated();
+      }
+
+      it('AC-PARTNER-ONBOARDING-22-06 example 1: an infected pdf is refused as infected and nothing is stored', async () => {
+        const infected = Buffer.concat([PDF, Buffer.from(EICAR)]);
+        const res = await submit({ otherDocuments: [file('sach.pdf'), file('nhiem.pdf', infected)] });
+        await expectScanRefusal(res, 422, 'PARTNER_APPLICATION_FILE_INFECTED', '/body/otherDocuments/1 infected');
+        expect(clamd.scanned).toHaveLength(3);
+      });
+
+      it('AC-PARTNER-ONBOARDING-22-06 example 2: a scan that fails is refused as not scanned, to retry later', async () => {
+        clamd.mode = 'error';
+        const res = await submit();
+        await expectScanRefusal(
+          res,
+          503,
+          'PARTNER_APPLICATION_FILE_SCAN_UNAVAILABLE',
+          '/body/businessRegistration/0 not_scanned',
+        );
+      });
+
+      it('AC-PARTNER-ONBOARDING-22-06 example 3: a scan without reply is refused as not scanned, to retry later', async () => {
+        clamd.mode = 'silent';
+        const res = await submit({ otherDocuments: [file('phu-luc.png', PNG)] });
+        await expectScanRefusal(
+          res,
+          503,
+          'PARTNER_APPLICATION_FILE_SCAN_UNAVAILABLE',
+          '/body/businessRegistration/0 not_scanned',
+          '/body/otherDocuments/0 not_scanned',
+        );
+      });
+
+      it('a scanner that drops the connection or cannot be reached gives no verdict, so nothing is accepted', async () => {
+        clamd.mode = 'hangup';
+        const dropped = await submit();
+        expect(dropped.status).toBe(503);
+        expect(dropped.body.code).toBe('PARTNER_APPLICATION_FILE_SCAN_UNAVAILABLE');
+        await expectNothingCreated();
+
+        const unreachable = await createTestApp({
+          override: (builder) =>
+            builder
+              .overrideProvider(MalwareScanner)
+              .useValue(new MalwareScanner({ host: '127.0.0.1', port: 1, timeoutMs: 1000 })),
+        });
+        try {
+          const res = await unreachable
+            .http()
+            .post('/api/partner-applications')
+            .field('legalForm', 'tổ chức')
+            .field('applicantName', 'A')
+            .field('contactEmail', 'a@b.c')
+            .field('legalName', 'C')
+            .field('taxCode', '0312345678')
+            .field('salesOnly', 'true')
+            .attach('businessRegistration', PDF, { filename: 'gpkd.pdf' });
+          expect(res.status).toBe(503);
+          expect(res.body.code).toBe('PARTNER_APPLICATION_FILE_SCAN_UNAVAILABLE');
+          expect(await unreachable.db.select().from(partnerApplications)).toHaveLength(0);
+        } finally {
+          await unreachable.close();
+        }
+      });
+    });
+
+    it('AC-PARTNER-ONBOARDING-22-08 any clean png as business registration is stored like every other file, unclassified', async () => {
+      const photo = ofSize(PNG, 2048);
+      const res = await expectStatus(
+        201,
+        submit({
+          businessRegistration: file('anh-phong-canh.png', photo),
+          otherDocuments: [file('anh-phong-canh.png', photo)],
+        }),
+      );
+      const stored = await filesOf(created(res).id);
+      // The two copies differ only by the input the applicant put them in; nothing tells what the picture shows.
+      const [asRegistration, asOther] = [
+        one(stored.filter((row) => row.kind === 'BUSINESS_REGISTRATION')),
+        one(stored.filter((row) => row.kind === 'OTHER')),
+      ];
+      const sameApartFromInput = (row: typeof asRegistration) => ({ ...row, id: undefined, kind: undefined });
+      expect(sameApartFromInput(asRegistration)).toEqual(sameApartFromInput(asOther));
+      expect(asRegistration).toMatchObject({
+        fileName: 'anh-phong-canh.png',
+        contentType: 'image/png',
+        sizeBytes: 2048,
+      });
+      expect(Buffer.from(asRegistration.content).equals(photo)).toBe(true);
+    });
+
+    it('AC-PARTNER-ONBOARDING-22-09 a clean pdf one byte over 10 MB is refused for its size', async () => {
+      const res = await submit({ businessRegistration: file('gpkd.pdf', ofSize(PDF, 10 * MB + 1)) });
+      await expectRefusedWith(res, '/body/businessRegistration/0 too_big');
+      expect(clamd.scanned).toHaveLength(0);
+    }, 30_000);
+
+    it('AC-PARTNER-ONBOARDING-22-10 four files with a 15 MB gif report too many files, its format and its size at once', async () => {
+      const res = await submit({
+        businessRegistration: file('gpkd.pdf'),
+        otherDocuments: [file('a.pdf'), file('b.pdf'), file('anh-dong.gif', ofSize(GIF, 15 * MB))],
+      });
+      await expectRefusedWith(
+        res,
+        '/body/otherDocuments too_big',
+        '/body/otherDocuments/2 invalid_format',
+        '/body/otherDocuments/2 too_big',
+      );
+    }, 30_000);
+
+    it('file errors and other wrong inputs are reported together', async () => {
+      const res = await submit({
+        taxCode: '123',
+        businessRegistration: [file('a.pdf'), file('b.pdf')],
+        otherDocuments: [file('anh.gif', GIF)],
+      });
+      await expectRefusedWith(
+        res,
+        '/body/taxCode invalid_format',
+        '/body/businessRegistration too_big',
+        '/body/otherDocuments/0 invalid_format',
+      );
+    });
+
+    it('businessRegistration is exactly one pdf, jpg or png file of at most 10 MB', async () => {
       for (const [name, content] of [
         ['gpkd.pdf', PDF],
         ['gpkd.jpg', JPG],
         ['gpkd.jpeg', JPG],
         ['GPKD.PNG', PNG],
       ] as const) {
-        const res = await submit({ businessRegistration: await upload(name, content) });
-        expect(res.status, name).toBe(201);
+        expect((await submit({ businessRegistration: file(name, content) })).status, name).toBe(201);
       }
+      await t.reset();
+      await expectRefusedWith(
+        await submit({ businessRegistration: [file('a.pdf'), file('b.pdf')] }),
+        '/body/businessRegistration too_big',
+      );
+      await expectRefusedWith(
+        await submit({ businessRegistration: file('gpkd.txt', Buffer.from('plain text')) }),
+        '/body/businessRegistration/0 invalid_format',
+      );
+      await expectRefusedWith(
+        await submit({ businessRegistration: file('gpkd.gif', GIF) }),
+        '/body/businessRegistration/0 invalid_format',
+      );
+      // An empty file has no content of an accepted type.
+      await expectRefusedWith(
+        await submit({ businessRegistration: file('rong.pdf', Buffer.alloc(0)) }),
+        '/body/businessRegistration/0 invalid_format',
+      );
+      // Text in place of the file.
+      await expectRefusedWith(
+        await submit({ businessRegistration: 'gpkd.pdf' }),
+        '/body/businessRegistration invalid_type',
+      );
+      // A body that is not a form can still carry an empty list where the file belongs.
+      await expectRefusedWith(
+        await t.http().post('/api/partner-applications').send({
+          legalForm: 'tổ chức',
+          applicantName: 'Nguyễn Văn A',
+          contactEmail: 'a@x.com',
+          legalName: 'Công ty TNHH ABC',
+          taxCode: '0312345678',
+          salesOnly: 'true',
+          businessRegistration: [],
+        }),
+        '/body/businessRegistration too_small',
+      );
     });
 
-    it('a file of another type is refused when uploaded, and nothing is stored', async () => {
-      const refusedUpload = async (name: string, content: Buffer) => {
-        const res = await t
-          .http()
-          .post('/api/partner-applications/attachments')
-          .attach('file', content, { filename: name })
-          .expect(422);
-        expect(res.body.code).toBe('PARTNER_APPLICATION_FILE_TYPE_NOT_ALLOWED');
-      };
-      await refusedUpload('gpkd.txt', Buffer.from('plain text'));
-      await refusedUpload('gpkd.exe', Buffer.from('MZ program'));
-      await refusedUpload('gpkd.docx', Buffer.from('PK zip'));
-      // The name says pdf but the content is a png, and the other way round.
-      await refusedUpload('gpkd.pdf', PNG);
-      await refusedUpload('gpkd.png', PDF);
-      await refusedUpload('gpkd', PDF);
-      expect(await t.db.select().from(attachments)).toHaveLength(0);
-    });
+    it('otherDocuments takes none, one or two files of at most 10 MB each and refuses a third', async () => {
+      expect((await submit({ otherDocuments: undefined })).status).toBe(201);
+      expect((await submit({ otherDocuments: [file('a.pdf')] })).status).toBe(201);
+      const two = await expectStatus(
+        201,
+        submit({ otherDocuments: [file('a.pdf', ofSize(PDF, 10 * MB)), file('b.png', PNG)] }),
+      );
+      expect((await filesOf(created(two).id)).map((row) => row.sizeBytes).sort((a, b) => a - b)).toEqual([
+        PNG.length,
+        PDF.length,
+        10 * MB,
+      ]);
+      await t.reset();
 
-    it('a file of exactly 10 MB is accepted and one byte more is refused with 413', async () => {
-      const ok = await t
-        .http()
-        .post('/api/partner-applications/attachments')
-        .attach('file', pdfOfSize(10 * MB), { filename: 'bang-10mb.pdf' })
-        .expect(201);
-      expect(AttachmentSchema.parse(ok.body).sizeBytes).toBe(10 * MB);
-
-      const tooBig = await t
-        .http()
-        .post('/api/partner-applications/attachments')
-        .attach('file', pdfOfSize(10 * MB + 1), { filename: 'qua-10mb.pdf' })
-        .expect(413);
-      expect(tooBig.body.code).toBe('PAYLOAD_TOO_LARGE');
-      expect(await t.db.select().from(attachments)).toHaveLength(1);
+      await expectRefusedWith(
+        await submit({ otherDocuments: [file('a.pdf'), file('b.pdf'), file('c.pdf')] }),
+        '/body/otherDocuments too_big',
+      );
+      await expectRefusedWith(
+        await submit({ otherDocuments: [file('a.pdf'), file('b.pdf', ofSize(PDF, 10 * MB + 1))] }),
+        '/body/otherDocuments/1 too_big',
+      );
+      await expectRefusedWith(
+        await submit({ otherDocuments: [file('a.exe', EXE)] }),
+        '/body/otherDocuments/0 invalid_format',
+      );
+      await expectRefusedWith(await submit({ otherDocuments: 'a.pdf' }), '/body/otherDocuments invalid_type');
     }, 30_000);
 
-    it('businessRegistration is exactly one file', async () => {
-      const [first, second] = [await upload('a.pdf'), await upload('b.pdf')];
-      expectInvalid(await submit({ businessRegistration: [first, second] }), 'businessRegistration');
-      expectInvalid(await submit({ businessRegistration: 'khong-phai-id' }), 'businessRegistration');
-      await expectNothingCreated();
-    });
-
-    it('otherDocuments takes none, one or two files and refuses a third', async () => {
-      expect((await submit({ otherDocuments: [] })).status).toBe(201);
-      expect((await submit({ otherDocuments: [await upload('a.pdf')] })).status).toBe(201);
-      const two = await submit({ otherDocuments: [await upload('a.pdf'), await upload('b.png', PNG)] });
-      expect(two.status).toBe(201);
-      const attachedBefore = (await state()).attachedFiles.length;
-
-      const three = [await upload('a.pdf'), await upload('b.pdf'), await upload('c.pdf')];
-      const res = await submit({ otherDocuments: three });
-      expectInvalid(res, 'otherDocuments');
-      expect((await state()).attachedFiles).toHaveLength(attachedBefore);
-      const notAList = await submit({ otherDocuments: 'a.pdf' });
-      expectInvalid(notAList, 'otherDocuments');
-    });
-
-    it('a file listed twice is refused', async () => {
-      const registration = await upload();
-      expectInvalid(
-        await submit({ businessRegistration: registration, otherDocuments: [registration] }),
-        'otherDocuments',
+    it('takes the type from the content whatever the name, and keeps a Vietnamese file name intact', async () => {
+      const res = await expectStatus(
+        201,
+        submit({ businessRegistration: file('Giấy đăng ký kinh doanh.png', PDF), otherDocuments: [file('anh', JPG)] }),
       );
-      const other = await upload('b.pdf');
-      expectInvalid(await submit({ otherDocuments: [other, other] }), 'otherDocuments');
+      const stored = await filesOf(created(res).id);
+      expect(stored.map((row) => [row.fileName, row.contentType]).sort()).toEqual(
+        [
+          ['Giấy đăng ký kinh doanh.png', 'application/pdf'],
+          ['anh', 'image/jpeg'],
+        ].sort(),
+      );
+      expect(Buffer.from(one(stored.filter((row) => row.fileName === 'anh')).content).equals(JPG)).toBe(true);
+    });
+
+    it('a form with far more files than any application has is cut off with 400', async () => {
+      const res = await submit({ otherDocuments: Array.from({ length: 11 }, (_, index) => file(`${index}.pdf`)) });
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe('BAD_REQUEST');
       await expectNothingCreated();
-    });
-
-    it('a file that does not exist or belongs to another application is refused and nothing is attached', async () => {
-      const unknown = '00000000-0000-4000-8000-000000000000';
-      const first = await expectStatus(201, submit());
-      const usedRegistration = one(
-        await t.db
-          .select()
-          .from(attachments)
-          .where(eq(attachments.applicationId, created(first).id)),
-      ).id;
-      const before = await state();
-
-      const reusedRegistration = await expectStatus(422, submit({ businessRegistration: usedRegistration }));
-      expect(reusedRegistration.body.code).toBe('PARTNER_APPLICATION_BUSINESS_REGISTRATION_INVALID');
-      const unknownRegistration = await expectStatus(422, submit({ businessRegistration: unknown }));
-      expect(unknownRegistration.body.code).toBe('PARTNER_APPLICATION_BUSINESS_REGISTRATION_INVALID');
-
-      const unusable = await upload('c.pdf');
-      const badOther = await expectStatus(422, submit({ businessRegistration: unusable, otherDocuments: [unknown] }));
-      expect(badOther.body.code).toBe('PARTNER_APPLICATION_OTHER_DOCUMENTS_INVALID');
-      const stillFree = one(await t.db.select().from(attachments).where(eq(attachments.id, unusable)));
-      expect(stillFree.applicationId).toBeNull();
-
-      const after = await state();
-      expect(after.applications).toHaveLength(before.applications.length);
-      expect(after.emails).toHaveLength(before.emails.length);
-      expect(after.notifications).toHaveLength(before.notifications.length);
-      expect(after.attachedFiles).toHaveLength(before.attachedFiles.length);
-    });
-
-    it('keeps a Vietnamese file name intact and takes the content type from the content', async () => {
-      const res = await t
-        .http()
-        .post('/api/partner-applications/attachments')
-        .attach('file', PDF, { filename: 'Giấy đăng ký kinh doanh.pdf', contentType: 'text/plain' })
-        .expect(201);
-      expect(AttachmentSchema.parse(res.body)).toMatchObject({
-        fileName: 'Giấy đăng ký kinh doanh.pdf',
-        contentType: 'application/pdf',
-        sizeBytes: PDF.length,
-      });
-      const row = one(await t.db.select().from(attachments));
-      expect(Buffer.from(row.content).toString()).toBe('%PDF-1.4 demo');
-    });
-
-    it('refuses an empty file, a request without a file and any other form field', async () => {
-      const empty = await t
-        .http()
-        .post('/api/partner-applications/attachments')
-        .attach('file', Buffer.alloc(0), { filename: 'rong.pdf' })
-        .expect(400);
-      expect(empty.body).toMatchObject({ code: 'VALIDATION_FAILED', errors: [{ pointer: '/body/file' }] });
-      const none = await t.http().post('/api/partner-applications/attachments').expect(400);
-      expect(none.body).toMatchObject({ code: 'VALIDATION_FAILED', errors: [{ pointer: '/body/file' }] });
-      const extra = await t
-        .http()
-        .post('/api/partner-applications/attachments')
-        .field('note', 'x')
-        .attach('file', PDF, { filename: 'gpkd.pdf' })
-        .expect(400);
-      expect(extra.body).toMatchObject({ code: 'VALIDATION_FAILED', errors: [{ pointer: '/body/note' }] });
-      const textFile = await t
-        .http()
-        .post('/api/partner-applications/attachments')
-        .field('file', 'x')
-        .attach('file', PDF, { filename: 'gpkd.pdf' })
-        .expect(400);
-      expect(textFile.body).toMatchObject({ code: 'VALIDATION_FAILED', errors: [{ pointer: '/body/file' }] });
-      expect(await t.db.select().from(attachments)).toHaveLength(0);
     });
   });
 });

@@ -1,28 +1,25 @@
 import { DomainError } from '../common/errors/domain-error.js';
+import type { FieldError } from '../common/http/problem.js';
 
-export class FileTypeNotAllowedError extends DomainError {
-  readonly code = 'PARTNER_APPLICATION_FILE_TYPE_NOT_ALLOWED';
+/**
+ * A file of the application was found infected (BR-PARTNER-ONBOARDING-038). `errors` points at each file the scan
+ * refused: `infected`, or `not_scanned` for a file the scanner gave no verdict on in the same submission.
+ */
+export class FileInfectedError extends DomainError {
+  readonly code = 'PARTNER_APPLICATION_FILE_INFECTED';
   readonly kind = 'unprocessable';
 
-  constructor() {
-    super('Only pdf, jpg and png files are accepted');
+  constructor(errors: FieldError[]) {
+    super('A file was found infected with malware', errors);
   }
 }
 
-export class BusinessRegistrationInvalidError extends DomainError {
-  readonly code = 'PARTNER_APPLICATION_BUSINESS_REGISTRATION_INVALID';
-  readonly kind = 'unprocessable';
+/** The scanner gave no verdict on a file (error or no reply in time); the applicant can try again later. */
+export class FileScanUnavailableError extends DomainError {
+  readonly code = 'PARTNER_APPLICATION_FILE_SCAN_UNAVAILABLE';
+  readonly kind = 'unavailable';
 
-  constructor() {
-    super('The business registration file does not exist or is already attached to an application');
-  }
-}
-
-export class OtherDocumentsInvalidError extends DomainError {
-  readonly code = 'PARTNER_APPLICATION_OTHER_DOCUMENTS_INVALID';
-  readonly kind = 'unprocessable';
-
-  constructor() {
-    super('An additional document does not exist or is already attached to an application');
+  constructor(errors: FieldError[]) {
+    super('A file could not be scanned for malware; try again later', errors);
   }
 }
