@@ -1,6 +1,7 @@
-import { Body, Controller, HttpStatus, Post, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, HttpStatus, Param, Post, UseInterceptors } from '@nestjs/common';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { z } from 'zod';
 import { ApiProblem, Returns } from '../common/http/decorators.js';
 import { attachmentStorage } from './attachment-storage.js';
 import { FilesToBodyInterceptor } from './files-to-body.interceptor.js';
@@ -88,5 +89,23 @@ export class PartnerApplicationsController {
     @Body({ schema: IndividualApplicationCreateSchema }) body: IndividualApplicationCreate,
   ): Promise<IndividualPartnerApplicationResponse> {
     return this.applications.submitIndividual(body);
+  }
+
+  @Get(':id/attachments/:attachmentId')
+  @ApiOperation({
+    summary: 'Mở một tệp đính kèm của đơn',
+    description:
+      'Theo BR-PARTNER-ONBOARDING-040 chỉ admin nền tảng và tài khoản gắn với đơn mở được tệp đính kèm của đơn. ' +
+      'Đăng nhập thuộc ticket đăng nhập chung và chưa có, nên hiện mọi người gọi đều bị từ chối: ' +
+      '403 PARTNER_APPLICATION_ATTACHMENT_FORBIDDEN (không có quyền mở tệp), dù đơn hay tệp có tồn tại hay không; ' +
+      'không tệp nào được trả về và đơn không đổi. Admin mở tệp (AC-PARTNER-ONBOARDING-24-01) được thêm cùng đăng nhập admin. ' +
+      'id và attachmentId không phải UUID: 400 VALIDATION_FAILED tại /path/id hoặc /path/attachmentId.',
+  })
+  @ApiProblem(403, 'PARTNER_APPLICATION_ATTACHMENT_FORBIDDEN')
+  openAttachment(
+    @Param('id', { schema: z.uuid() }) id: string,
+    @Param('attachmentId', { schema: z.uuid() }) attachmentId: string,
+  ): never {
+    return this.applications.openAttachment(id, attachmentId);
   }
 }

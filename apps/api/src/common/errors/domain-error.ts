@@ -7,7 +7,7 @@ import type { FieldError } from '../http/problem.js';
 export const DOMAIN_ERROR_STATUS = {
   /** The resource does not exist (or the caller must not learn that it does). */
   not_found: 404,
-  /** The caller is known but not allowed to do this. */
+  /** The caller is not allowed to do this, whether known or not logged in. */
   forbidden: 403,
   /** The request is valid but the current state forbids it (expired, already accepted, terminated…). */
   conflict: 409,

@@ -173,6 +173,78 @@
           "partner-applications"
         ]
       }
+    },
+    "/api/partner-applications/{id}/attachments/{attachmentId}": {
+      "get": {
+        "description": "Theo BR-PARTNER-ONBOARDING-040 chỉ admin nền tảng và tài khoản gắn với đơn mở được tệp đính kèm của đơn. Đăng nhập thuộc ticket đăng nhập chung và chưa có, nên hiện mọi người gọi đều bị từ chối: 403 PARTNER_APPLICATION_ATTACHMENT_FORBIDDEN (không có quyền mở tệp), dù đơn hay tệp có tồn tại hay không; không tệp nào được trả về và đơn không đổi. Admin mở tệp (AC-PARTNER-ONBOARDING-24-01) được thêm cùng đăng nhập admin. id và attachmentId không phải UUID: 400 VALIDATION_FAILED tại /path/id hoặc /path/attachmentId.",
+        "operationId": "PartnerApplications_openAttachment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          },
+          {
+            "name": "attachmentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        ],
+        "responses": {
+          "403": {
+            "description": "PARTNER_APPLICATION_ATTACHMENT_FORBIDDEN",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "code"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "PARTNER_APPLICATION_ATTACHMENT_FORBIDDEN"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error (Problem Details)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Mở một tệp đính kèm của đơn",
+        "tags": [
+          "partner-applications"
+        ]
+      }
     }
   },
   "info": {

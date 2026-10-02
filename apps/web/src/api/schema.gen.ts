@@ -60,6 +60,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/partner-applications/{id}/attachments/{attachmentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mở một tệp đính kèm của đơn
+         * @description Theo BR-PARTNER-ONBOARDING-040 chỉ admin nền tảng và tài khoản gắn với đơn mở được tệp đính kèm của đơn. Đăng nhập thuộc ticket đăng nhập chung và chưa có, nên hiện mọi người gọi đều bị từ chối: 403 PARTNER_APPLICATION_ATTACHMENT_FORBIDDEN (không có quyền mở tệp), dù đơn hay tệp có tồn tại hay không; không tệp nào được trả về và đơn không đổi. Admin mở tệp (AC-PARTNER-ONBOARDING-24-01) được thêm cùng đăng nhập admin. id và attachmentId không phải UUID: 400 VALIDATION_FAILED tại /path/id hoặc /path/attachmentId.
+         */
+        get: operations["PartnerApplications_openAttachment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -311,6 +331,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["IndividualPartnerApplication"];
+                };
+            };
+            /** @description Error (Problem Details) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    PartnerApplications_openAttachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                attachmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description PARTNER_APPLICATION_ATTACHMENT_FORBIDDEN */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"] & {
+                        /** @enum {string} */
+                        code: "PARTNER_APPLICATION_ATTACHMENT_FORBIDDEN";
+                    };
                 };
             };
             /** @description Error (Problem Details) */

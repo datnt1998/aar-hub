@@ -23,3 +23,16 @@ export class FileScanUnavailableError extends DomainError {
     super('A file could not be scanned for malware; try again later', errors);
   }
 }
+
+/**
+ * The caller may not open the files of this application (BR-PARTNER-ONBOARDING-040): only a platform admin and the
+ * account bound to the application may.
+ */
+export class AttachmentOpenForbiddenError extends DomainError {
+  readonly code = 'PARTNER_APPLICATION_ATTACHMENT_FORBIDDEN';
+  readonly kind = 'forbidden';
+
+  constructor(applicationId: string, attachmentId: string) {
+    super(`Not allowed to open attachment ${attachmentId} of application ${applicationId}`);
+  }
+}
