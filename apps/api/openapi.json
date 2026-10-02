@@ -444,7 +444,7 @@
             "minLength": 12,
             "maxLength": 12,
             "pattern": "^[0-9]{12}$",
-            "description": "Số CCCD: đúng 12 chữ số, chỉ gồm chữ số. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu. Trùng với đối tác hay đơn đang mở vẫn được nhận; cảnh báo trùng chỉ dành cho admin. Bỏ trống: invalid_type; rỗng: too_small; thiếu số hoặc có ký tự khác chữ số: invalid_format; quá 12 ký tự: too_big",
+            "description": "Số CCCD: đúng 12 chữ số, chỉ gồm chữ số. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu. Trùng với đối tác hay đơn đang mở vẫn được nhận; cảnh báo trùng chỉ dành cho admin. Bỏ trống: invalid_type; rỗng hoặc dưới 12 ký tự: too_small; quá 12 ký tự: too_big; đủ 12 ký tự nhưng có ký tự khác chữ số: invalid_format",
             "type": "string"
           },
           "citizenIdImage": {

@@ -441,7 +441,8 @@ describe('partner applications (individual)', () => {
     it('citizenId is exactly 12 ASCII digits and nothing else', async () => {
       expect((await accepted('citizenId', '000000000000')).citizenId).toBe('000000000000');
       expect((await accepted('citizenId', '999999999999')).citizenId).toBe('999999999999');
-      expect(await refused('citizenId', '07912345678')).toBe('invalid_format');
+      expect(await refused('citizenId', '07912345678')).toBe('too_small');
+      expect(await refused('citizenId', '0791234567A')).toBe('too_small');
       expect(await refused('citizenId', '0791234567890')).toBe('too_big');
       expect(await refused('citizenId', '')).toBe('too_small');
       expect(await refused('citizenId', '   ')).toBe('too_small');

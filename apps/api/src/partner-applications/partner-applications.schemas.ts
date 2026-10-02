@@ -239,11 +239,10 @@ export const IndividualApplicationCreateSchema = z
     legalName: text(1, 255).meta({
       description: 'Họ tên pháp nhân cá nhân, 1–255 ký tự, không chỉ gồm khoảng trắng',
     }),
-    citizenId: text(1, 12, { pattern: CITIZEN_ID_SHAPE, format: 'regex' }).meta({
-      minLength: 12,
+    citizenId: text(12, 12, { pattern: CITIZEN_ID_SHAPE, format: 'regex' }).meta({
       pattern: '^[0-9]{12}$',
       description:
-        'Số CCCD: đúng 12 chữ số, chỉ gồm chữ số. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu. Trùng với đối tác hay đơn đang mở vẫn được nhận; cảnh báo trùng chỉ dành cho admin. Bỏ trống: invalid_type; rỗng: too_small; thiếu số hoặc có ký tự khác chữ số: invalid_format; quá 12 ký tự: too_big',
+        'Số CCCD: đúng 12 chữ số, chỉ gồm chữ số. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu. Trùng với đối tác hay đơn đang mở vẫn được nhận; cảnh báo trùng chỉ dành cho admin. Bỏ trống: invalid_type; rỗng hoặc dưới 12 ký tự: too_small; quá 12 ký tự: too_big; đủ 12 ký tự nhưng có ký tự khác chữ số: invalid_format',
     }),
     citizenIdImage: files('citizenIdImage').meta({
       description: `Ảnh CCCD: đúng ${MAX_FILES.citizenIdImage} tệp, gửi cùng đơn. ${FILE_RULES}. Bỏ trống: invalid_type; danh sách rỗng: too_small`,

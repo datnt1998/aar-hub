@@ -134,7 +134,7 @@ export interface components {
             contactEmail: string;
             /** @description Họ tên pháp nhân cá nhân, 1–255 ký tự, không chỉ gồm khoảng trắng */
             legalName: string;
-            /** @description Số CCCD: đúng 12 chữ số, chỉ gồm chữ số. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu. Trùng với đối tác hay đơn đang mở vẫn được nhận; cảnh báo trùng chỉ dành cho admin. Bỏ trống: invalid_type; rỗng: too_small; thiếu số hoặc có ký tự khác chữ số: invalid_format; quá 12 ký tự: too_big */
+            /** @description Số CCCD: đúng 12 chữ số, chỉ gồm chữ số. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu. Trùng với đối tác hay đơn đang mở vẫn được nhận; cảnh báo trùng chỉ dành cho admin. Bỏ trống: invalid_type; rỗng hoặc dưới 12 ký tự: too_small; quá 12 ký tự: too_big; đủ 12 ký tự nhưng có ký tự khác chữ số: invalid_format */
             citizenId: string;
             /** @description Ảnh CCCD: đúng 1 tệp, gửi cùng đơn. pdf, jpg hoặc png nhận theo nội dung tệp, không theo đuôi tên; mỗi tệp tối đa 10485760 byte (10 MB). Cả đơn tối đa 3 tệp. Tệp sai định dạng: invalid_format tại /body/<trường>/<thứ tự>; tệp quá lớn: too_big tại /body/<trường>/<thứ tự>; quá số tệp: too_big tại /body/<trường>. Bỏ trống: invalid_type; danh sách rỗng: too_small */
             citizenIdImage: string[];
