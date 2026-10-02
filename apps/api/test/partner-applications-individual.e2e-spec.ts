@@ -505,6 +505,39 @@ describe('partner applications (individual)', () => {
     });
   });
 
+  describe('input checks of the applicant (UC-PARTNER-ONBOARDING-27)', () => {
+    /** The submission was refused for exactly these `pointer code` errors, in one answer, and left nothing behind. */
+    async function expectRefused(res: { status: number; body: { code: string; errors: Errors } }, ...errors: string[]) {
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe('VALIDATION_FAILED');
+      expect(errorsOf(res)).toEqual(errors.sort());
+      await expectNothingCreated();
+    }
+
+    it('AC-PARTNER-ONBOARDING-27-03 an 11-digit citizen ID is refused on the citizen ID and nothing is created', async () => {
+      await expectRefused(await submit({ citizenId: '07912345678' }), '/body/citizenId too_small');
+    });
+
+    it('AC-PARTNER-ONBOARDING-27-04 example 2: individual, email a@b without a dot after @ is refused on the email and nothing is created', async () => {
+      await expectRefused(await submit({ contactEmail: 'a@b' }), '/body/contactEmail invalid_format');
+    });
+
+    it('AC-PARTNER-ONBOARDING-27-04 example 4: individual, email a@.com starting with a dot after @ is refused on the email and nothing is created', async () => {
+      await expectRefused(await submit({ contactEmail: 'a@.com' }), '/body/contactEmail invalid_format');
+    });
+
+    it('AC-PARTNER-ONBOARDING-27-05 example 3: individual, a 256-character legal name of the individual is refused as over 255 characters and nothing is created', async () => {
+      await expectRefused(await submit({ legalName: 'N'.repeat(256) }), '/body/legalName too_big');
+    });
+
+    it('AC-PARTNER-ONBOARDING-27-05 example 4: individual, one 256-character declared artist name is refused as over 255 characters and nothing is created', async () => {
+      await expectRefused(
+        await submit({ declaredArtists: ['Nghệ sĩ Một', 'n'.repeat(256)] }),
+        '/body/declaredArtists/1 too_big',
+      );
+    });
+  });
+
   describe('attached files', () => {
     /** Every refusal of a file leaves nothing behind: no application, no file, no email, no notification. */
     async function expectRefusedWith(

@@ -538,6 +538,78 @@ describe('partner applications (organization)', () => {
     });
   });
 
+  describe('input checks of the applicant (UC-PARTNER-ONBOARDING-27)', () => {
+    const artists = (count: number) => Array.from({ length: count }, (_, index) => `Nghệ sĩ ${index + 1}`);
+
+    /**
+     * The submission was refused for exactly these `pointer code` errors, in one answer, and left nothing behind: no
+     * application, file, email or notification, and no file was sent for scanning.
+     */
+    async function expectRefused(res: { status: number; body: { code: string; errors: Errors } }, ...errors: string[]) {
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe('VALIDATION_FAILED');
+      expect(errorsOf(res)).toEqual(errors.sort());
+      await expectNothingCreated();
+      expect(clamd.scanned).toHaveLength(0);
+    }
+
+    it('AC-PARTNER-ONBOARDING-27-01 a 13-digit tax code, email a@b.vn, a 255-character legal name and 20 artists are accepted in SUBMITTED', async () => {
+      const legalName = 'C'.repeat(255);
+      const res = await expectStatus(
+        201,
+        submit({ taxCode: '0312345678123', contactEmail: 'a@b.vn', legalName, declaredArtists: artists(20) }),
+      );
+      expect(created(res)).toMatchObject({
+        status: 'SUBMITTED',
+        taxCode: '0312345678123',
+        contactEmail: 'a@b.vn',
+        legalName,
+        declaredArtists: artists(20),
+      });
+      const row = one(await t.db.select().from(partnerApplications));
+      expect(row).toMatchObject({
+        id: created(res).id,
+        status: 'SUBMITTED',
+        taxCode: '0312345678123',
+        contactEmail: 'a@b.vn',
+        legalName,
+        declaredArtists: artists(20),
+      });
+    });
+
+    it('AC-PARTNER-ONBOARDING-27-02 a tax code with a hyphen, 0101-234567, is refused on the tax code and nothing is created', async () => {
+      await expectRefused(await submit({ taxCode: '0101-234567' }), '/body/taxCode invalid_format');
+    });
+
+    it('AC-PARTNER-ONBOARDING-27-04 example 1: organization, email nguyen.a without @ is refused on the email and nothing is created', async () => {
+      await expectRefused(await submit({ contactEmail: 'nguyen.a' }), '/body/contactEmail invalid_format');
+    });
+
+    it('AC-PARTNER-ONBOARDING-27-04 example 3: organization, email @y.com with nothing before @ is refused on the email and nothing is created', async () => {
+      await expectRefused(await submit({ contactEmail: '@y.com' }), '/body/contactEmail invalid_format');
+    });
+
+    it('AC-PARTNER-ONBOARDING-27-05 example 1: organization, a 256-character legal name is refused as over 255 characters and nothing is created', async () => {
+      await expectRefused(await submit({ legalName: 'C'.repeat(256) }), '/body/legalName too_big');
+    });
+
+    it('AC-PARTNER-ONBOARDING-27-05 example 2: organization, a 256-character applicant name is refused as over 255 characters and nothing is created', async () => {
+      await expectRefused(await submit({ applicantName: 'T'.repeat(256) }), '/body/applicantName too_big');
+    });
+
+    it('AC-PARTNER-ONBOARDING-27-06 21 declared artists, names only, are refused as over the 20-artist limit and nothing is created', async () => {
+      await expectRefused(await submit({ declaredArtists: artists(21) }), '/body/declaredArtists too_big');
+    });
+
+    it('AC-PARTNER-ONBOARDING-27-07 tax code 0101-234567 and email a@b are both reported in one answer and nothing is created', async () => {
+      await expectRefused(
+        await submit({ taxCode: '0101-234567', contactEmail: 'a@b' }),
+        '/body/taxCode invalid_format',
+        '/body/contactEmail invalid_format',
+      );
+    });
+  });
+
   describe('attached files', () => {
     /** Every refusal of a file leaves nothing behind: no application, no file, no email, no notification. */
     async function expectRefusedWith(
