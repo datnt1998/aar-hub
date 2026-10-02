@@ -436,6 +436,7 @@ describe('partner applications (organization)', () => {
       expect(await refused('declaredArtists', names(21))).toBe('too_big');
       expect(await refused('declaredArtists', names(21), 'declaredArtists', { salesOnly: true })).toBe('too_big');
       expect(await refused('declaredArtists', [])).toBe('too_small');
+      expect((await accepted('declaredArtists', ['A'])).declaredArtists).toEqual(['A']);
       await accepted('declaredArtists', ['n'.repeat(255)]);
       expect(await refused('declaredArtists', ['n'.repeat(256)], 'declaredArtists/0')).toBe('too_big');
       expect(await refused('declaredArtists', ['Hợp lệ', ''], 'declaredArtists/1')).toBe('too_small');
