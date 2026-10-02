@@ -8,7 +8,7 @@ import { RequestValidationError } from './validation.pipe.js';
  * Renders every error as RFC 9457 Problem Details with a required `code`.
  *
  * - Request schema failures → 400 VALIDATION_FAILED with `errors[]`.
- * - DomainError → status by `kind`, its `code` and message.
+ * - DomainError → status by `kind`, its `code`, message and the inputs it names (`errors[]`), if any.
  * - HttpException → its status, `errorCode` or a code derived from the status.
  * - Errors from the HTTP stack that carry a client status (body too large, malformed JSON) keep that status.
  * - Anything else → 500 INTERNAL_SERVER_ERROR; the error is logged and its message never reaches the client.
@@ -47,7 +47,10 @@ export class ProblemFilter implements ExceptionFilter {
       return problem(400, 'VALIDATION_FAILED', instance, { detail: exception.message, errors: exception.errors });
     }
     if (exception instanceof DomainError) {
-      return problem(DOMAIN_ERROR_STATUS[exception.kind], exception.code, instance, { detail: exception.message });
+      return problem(DOMAIN_ERROR_STATUS[exception.kind], exception.code, instance, {
+        detail: exception.message,
+        errors: exception.errors,
+      });
     }
     if (exception instanceof HttpException) {
       const status = exception.getStatus();

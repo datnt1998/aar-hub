@@ -12,7 +12,8 @@ export const FieldErrorSchema = z
       example: '/body/email',
     }),
     code: z.string().meta({
-      description: 'Machine-readable reason (schema issue code such as `too_small`, `invalid_format`)',
+      description:
+        'Machine-readable reason: a schema issue code such as `too_small`, `invalid_format`; for a business error, the reason its route documents (`infected`)',
       example: 'invalid_format',
     }),
     detail: z.string().meta({ description: 'English explanation for developers; clients show their own text' }),
@@ -30,10 +31,10 @@ export const ProblemSchema = z
     }),
     detail: z.string().optional().meta({ description: 'English explanation for developers; never shown as UI text' }),
     instance: z.string().meta({ description: 'Request path that produced the error' }),
-    errors: z
-      .array(FieldErrorSchema)
-      .optional()
-      .meta({ description: 'Per-input errors when `code` is VALIDATION_FAILED' }),
+    errors: z.array(FieldErrorSchema).optional().meta({
+      description:
+        'Per-input errors: every invalid input when `code` is VALIDATION_FAILED; the inputs a business error is about for the codes that name them',
+    }),
   })
   .meta({ id: 'Problem', description: 'Error response (RFC 9457 Problem Details) with a required `code`' });
 

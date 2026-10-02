@@ -2,7 +2,13 @@ import { envSchema } from './env.js';
 
 describe('envSchema', () => {
   it('boots with defaults when nothing is set', () => {
-    expect(envSchema.parse({})).toEqual({ NODE_ENV: 'development', PORT: 3000 });
+    expect(envSchema.parse({})).toEqual({
+      NODE_ENV: 'development',
+      PORT: 3000,
+      CLAMAV_HOST: '127.0.0.1',
+      CLAMAV_PORT: 3310,
+      MALWARE_SCAN_TIMEOUT_MS: 30_000,
+    });
   });
 
   it('reads PORT from its string form and rejects values outside the port range', () => {

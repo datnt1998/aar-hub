@@ -1,10 +1,14 @@
-import type { LegalForm, NotificationKind } from '../db/schema.js';
+import type { AttachmentKind, LegalForm, NotificationKind } from '../db/schema.js';
 
-/** Largest accepted file: 10 MB, where 1 MB = 1 048 576 bytes (businessRegistration and otherDocuments). */
+/** Largest accepted file: 10 MB, where 1 MB = 1 048 576 bytes (BR-PARTNER-ONBOARDING-041). */
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
-/** businessRegistration takes one file, otherDocuments up to two: three files per application. */
-export const MAX_OTHER_DOCUMENTS = 2;
+/**
+ * Files per input. One business registration and up to two other documents: at most three files per application
+ * (BR-PARTNER-ONBOARDING-037), so a submission with more than three files always breaks one of these limits.
+ */
+export const MAX_FILES = { businessRegistration: 1, otherDocuments: 2 } as const;
+export type FileInput = keyof typeof MAX_FILES;
 
 export const MAX_DECLARED_ARTISTS = 20;
 
@@ -12,16 +16,18 @@ export const MAX_DECLARED_ARTISTS = 20;
 export const MESSAGE_RECEIVED = 'Đơn tổ chức đã được nhận';
 export const MESSAGE_NEW_FOR_ADMIN = 'Có đơn tổ chức mới cần nhận';
 
-/** A file as Multer hands it over. */
+/**
+ * A file of the submission as the upload storage hands it over. `size` is the real size; `buffer` holds the whole
+ * content only when the file can be accepted (see attachment-storage.ts), otherwise just enough to check it.
+ */
 export interface FileUpload {
   originalname: string;
-  mimetype: string;
   size: number;
   buffer: Buffer;
 }
 
-/** True for an object shaped like a Multer file with at least one byte. */
-export function isNonEmptyFile(value: unknown): value is FileUpload {
+/** True for an object shaped like an uploaded file. */
+export function isFileUpload(value: unknown): value is FileUpload {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -29,42 +35,39 @@ export function isNonEmptyFile(value: unknown): value is FileUpload {
     Buffer.isBuffer(value.buffer) &&
     'size' in value &&
     typeof value.size === 'number' &&
-    value.size > 0 &&
     'originalname' in value &&
     typeof value.originalname === 'string'
   );
 }
 
-interface FileKind {
-  /** Content type stored for files of this kind (taken from the content, not from the client). */
-  mime: string;
-  extensions: readonly string[];
-  /** The file starts with these bytes. */
-  signature: readonly number[];
-}
+/** The file types the ticket allows (BR-PARTNER-ONBOARDING-036), each with the bytes its content starts with. */
+const FILE_TYPES = [
+  { contentType: 'application/pdf', signature: [0x25, 0x50, 0x44, 0x46, 0x2d] },
+  { contentType: 'image/jpeg', signature: [0xff, 0xd8, 0xff] },
+  { contentType: 'image/png', signature: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] },
+] as const;
 
-/** The file types the ticket allows: pdf, jpg, png. */
-const FILE_KINDS: readonly FileKind[] = [
-  { mime: 'application/pdf', extensions: ['pdf'], signature: [0x25, 0x50, 0x44, 0x46, 0x2d] },
-  { mime: 'image/jpeg', extensions: ['jpg', 'jpeg'], signature: [0xff, 0xd8, 0xff] },
-  { mime: 'image/png', extensions: ['png'], signature: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] },
-];
+/** Bytes needed from the start of a file to tell its type. */
+export const SIGNATURE_BYTES = Math.max(...FILE_TYPES.map((type) => type.signature.length));
 
 /**
- * Content type of an allowed file, or undefined when it is not a pdf, jpg or png. The content must match one of the
- * three formats and the name's extension must agree with it, so a renamed file does not pass.
+ * Content type of a pdf, jpg or png file, or undefined for any other content. Only the content counts, never the
+ * file name: a Word file renamed to .pdf is refused, and a real pdf is a pdf whatever its name.
  */
-export function allowedContentType(fileName: string, content: Uint8Array): string | undefined {
-  const extension = fileName.slice(fileName.lastIndexOf('.') + 1).toLowerCase();
-  const kind = FILE_KINDS.find((candidate) => candidate.signature.every((byte, index) => content[index] === byte));
-  return kind?.extensions.includes(extension) ? kind.mime : undefined;
+export function detectFileType(content: Uint8Array): string | undefined {
+  return FILE_TYPES.find((type) => type.signature.every((byte, index) => content[index] === byte))?.contentType;
 }
 
-export interface Attachment {
-  id: string;
+/** A file that passed the type and size checks, ready to scan and store. */
+export interface AcceptedFile {
   fileName: string;
   contentType: string;
-  sizeBytes: number;
+  content: Buffer;
+}
+
+/** A file stored with an application. `kind` is the input the applicant put it in; the system never classifies files. */
+export interface ApplicationFile extends AcceptedFile {
+  kind: AttachmentKind;
 }
 
 export interface StoredApplication {

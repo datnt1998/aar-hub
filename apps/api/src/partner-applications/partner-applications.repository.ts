@@ -1,17 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { type AppDb, DB } from '../db/db.js';
-import {
-  accounts,
-  attachments,
-  type AttachmentKind,
-  emailOutbox,
-  notifications,
-  partnerApplications,
-} from '../db/schema.js';
+import { accounts, attachments, emailOutbox, notifications, partnerApplications } from '../db/schema.js';
 import type {
   AdminContact,
-  Attachment,
+  ApplicationFile,
   InAppNotification,
   OutgoingEmail,
   StoredApplication,
@@ -21,19 +14,6 @@ import type { OrganizationApplicationCreate } from './partner-applications.schem
 /** Handle of one open database transaction, passed between the repository calls of a use case. */
 export type Tx = Parameters<Parameters<AppDb['transaction']>[0]>[0];
 
-const attachmentColumns = {
-  id: attachments.id,
-  fileName: attachments.fileName,
-  contentType: attachments.contentType,
-  sizeBytes: attachments.sizeBytes,
-};
-
-export interface NewFile {
-  fileName: string;
-  contentType: string;
-  content: Buffer;
-}
-
 @Injectable()
 export class PartnerApplicationsRepository {
   constructor(@Inject(DB) private readonly db: AppDb) {}
@@ -42,21 +22,20 @@ export class PartnerApplicationsRepository {
     return this.db.transaction(work);
   }
 
-  async insertAttachment(file: NewFile, now: Date): Promise<Attachment> {
-    const [row] = await this.db
-      .insert(attachments)
-      .values({
-        fileName: file.fileName,
-        contentType: file.contentType,
-        sizeBytes: file.content.length,
-        content: file.content,
-        createdAt: now,
-      })
-      .returning(attachmentColumns);
-    if (!row) {
-      throw new Error('insert into attachments returned no row');
+  async insertFiles(tx: Tx, applicationId: string, files: ApplicationFile[], now: Date): Promise<void> {
+    if (files.length > 0) {
+      await tx.insert(attachments).values(
+        files.map((file) => ({
+          applicationId,
+          kind: file.kind,
+          fileName: file.fileName,
+          contentType: file.contentType,
+          sizeBytes: file.content.length,
+          content: file.content,
+          createdAt: now,
+        })),
+      );
     }
-    return row;
   }
 
   async insertApplication(tx: Tx, input: OrganizationApplicationCreate, now: Date): Promise<StoredApplication> {
@@ -88,16 +67,6 @@ export class PartnerApplicationsRepository {
       throw new Error('insert into partner_applications returned no row');
     }
     return { ...row, status: 'SUBMITTED' };
-  }
-
-  /** Attaches the given uploads to the application and returns how many were attached. Uploads that do not exist or are attached already are skipped. */
-  async attachUploads(tx: Tx, applicationId: string, ids: string[], kind: AttachmentKind): Promise<number> {
-    const rows = await tx
-      .update(attachments)
-      .set({ applicationId, kind })
-      .where(and(inArray(attachments.id, ids), isNull(attachments.applicationId)))
-      .returning({ id: attachments.id });
-    return rows.length;
   }
 
   findPlatformAdmins(tx: Tx): Promise<AdminContact[]> {
