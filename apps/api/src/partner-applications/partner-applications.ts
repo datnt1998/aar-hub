@@ -33,7 +33,8 @@ export const MESSAGES: Record<LegalForm, { received: string; newForAdmin: string
 
 /**
  * A file of the submission as the upload storage hands it over. `size` is the real size; `buffer` holds the whole
- * content only when the file can be accepted (see attachment-storage.ts), otherwise just enough to check it.
+ * content only when the route stores files and the file can be accepted (see attachment-storage.ts), otherwise just
+ * enough to check it.
  */
 export interface FileUpload {
   originalname: string;
@@ -73,7 +74,7 @@ export function detectFileType(content: Uint8Array): string | undefined {
   return FILE_TYPES.find((type) => type.signature.every((byte, index) => content[index] === byte))?.contentType;
 }
 
-/** A file that passed the type and size checks, ready to scan and store. */
+/** A file that passed the type and size checks. `content` is whole only on a route that stores files. */
 export interface AcceptedFile {
   fileName: string;
   contentType: string;

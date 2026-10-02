@@ -12,12 +12,12 @@ type Done = (error: Error | null, info?: Pick<FileUpload, 'buffer' | 'size'>) =>
  * Multer storage engine for the files of an application whose file inputs are `inputs`. Every file is read to the end
  * so its real size is known and every error of the submission can be reported together (BR-PARTNER-ONBOARDING-054),
  * but memory stays bounded:
- * - a file that could be stored (within the count of its input) keeps at most MAX_FILE_BYTES + 1 bytes, which is its
- *   whole content when it is not too large;
- * - any other file (over the count, or under an input this form does not take) keeps only the bytes that tell its type.
- * Such a file always fails the request (too many files or unknown input), so its content is never needed.
+ * - when the route stores files (`storesFiles`), a file that could be stored (within the count of its input) keeps at
+ *   most MAX_FILE_BYTES + 1 bytes, which is its whole content when it is not too large;
+ * - any other file (the route only checks files, the file is over the count, or under an input this form does not
+ *   take) keeps only the bytes that tell its type. Its content is never needed.
  */
-export function attachmentStorage(inputs: readonly FileInput[]) {
+export function attachmentStorage(inputs: readonly FileInput[], { storesFiles }: { storesFiles: boolean }) {
   const filesSeen = new WeakMap<object, Map<string, number>>();
   return {
     _handleFile(req: object, file: IncomingFile, done: Done): void {
@@ -27,7 +27,7 @@ export function attachmentStorage(inputs: readonly FileInput[]) {
       seen.set(file.fieldname, index + 1);
       const input = inputs.find((name) => name === file.fieldname);
       const limit = input ? MAX_FILES[input] : 0;
-      const keep = index < limit ? MAX_FILE_BYTES + 1 : SIGNATURE_BYTES;
+      const keep = storesFiles && index < limit ? MAX_FILE_BYTES + 1 : SIGNATURE_BYTES;
 
       const chunks: Buffer[] = [];
       let kept = 0;

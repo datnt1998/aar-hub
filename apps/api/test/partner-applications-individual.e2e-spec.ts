@@ -110,9 +110,6 @@ describe('partner applications (individual)', () => {
   const storedRow = async (id: string) =>
     one(await t.db.select().from(partnerApplications).where(eq(partnerApplications.id, id)));
 
-  const filesOf = (applicationId: string) =>
-    t.db.select().from(attachments).where(eq(attachments.applicationId, applicationId));
-
   /** Everything a submission may leave behind. */
   async function state() {
     return {
@@ -130,6 +127,12 @@ describe('partner applications (individual)', () => {
     expect(now.emails).toHaveLength(0);
     expect(now.notifications).toHaveLength(0);
     expect(now.files).toHaveLength(0);
+  }
+
+  /** The submission's files were checked only: none was sent to the malware scanner and none was stored. */
+  async function expectFilesNotKept() {
+    expect(clamd.scanned).toHaveLength(0);
+    expect(await t.db.select().from(attachments)).toHaveLength(0);
   }
 
   type Errors = { pointer: string; code: string }[];
@@ -184,9 +187,7 @@ describe('partner applications (individual)', () => {
       const row = await storedRow(created(res).id);
       expect(row).toMatchObject({ status: 'SUBMITTED', legalForm: 'cá nhân', citizenId: CITIZEN_ID, taxCode: null });
       expect(await t.db.select().from(partnerApplications)).toHaveLength(1);
-      expect((await filesOf(created(res).id)).map((stored) => `${stored.kind} ${stored.fileName}`)).toEqual([
-        'CITIZEN_ID_IMAGE cccd.jpg',
-      ]);
+      await expectFilesNotKept();
     });
 
     it('AC-PARTNER-ONBOARDING-14-01 example 2: two declared artists, one optional document, new legal entity', async () => {
@@ -196,11 +197,7 @@ describe('partner applications (individual)', () => {
       );
       expect(created(res)).toMatchObject({ status: 'SUBMITTED', declaredArtists: ['Nghệ sĩ Một', 'Nghệ sĩ Hai'] });
       expect((await storedRow(created(res).id)).status).toBe('SUBMITTED');
-      const stored = await filesOf(created(res).id);
-      expect(stored.map((row) => `${row.kind} ${row.fileName}`).sort()).toEqual([
-        'CITIZEN_ID_IMAGE cccd.jpg',
-        'OTHER ho-so.pdf',
-      ]);
+      await expectFilesNotKept();
     });
 
     it('AC-PARTNER-ONBOARDING-14-01 example 3: sales only without artists, citizen ID shared with an ACTIVE partner', async () => {
@@ -373,9 +370,6 @@ describe('partner applications (individual)', () => {
       await t.db.insert(accounts).values({ email: 'admin@aar.vn', isPlatformAdmin: true });
       await expectStatus(400, submit({ citizenId: undefined }));
       await expectNothingCreated();
-      clamd.mode = 'error';
-      await expectStatus(503, submit());
-      await expectNothingCreated();
     });
   });
 
@@ -530,10 +524,9 @@ describe('partner applications (individual)', () => {
         ['cccd.jpeg', JPG],
         ['CCCD.PNG', PNG],
       ] as const) {
-        const res = await submit({ citizenIdImage: file(name, content) });
-        expect(res.status, name).toBe(201);
-        expect(one(await filesOf(created(res).id))).toMatchObject({ kind: 'CITIZEN_ID_IMAGE', fileName: name });
+        expect((await submit({ citizenIdImage: file(name, content) })).status, name).toBe(201);
       }
+      await expectFilesNotKept();
     });
 
     it('a citizen ID image of another type, or renamed to look like a picture, is refused for its format', async () => {
@@ -551,19 +544,16 @@ describe('partner applications (individual)', () => {
       expect(clamd.scanned).toHaveLength(0);
     });
 
-    it('a citizen ID image of exactly 10 MB is stored and one byte more is refused for its size', async () => {
-      const image = ofSize(JPG, 10 * MB);
-      const res = await expectStatus(201, submit({ citizenIdImage: file('cccd.jpg', image) }));
-      const stored = one(await filesOf(created(res).id));
-      expect(stored.sizeBytes).toBe(10 * MB);
-      expect(Buffer.from(stored.content).equals(image)).toBe(true);
+    it('a citizen ID image of exactly 10 MB is accepted and one byte more is refused for its size', async () => {
+      await expectStatus(201, submit({ citizenIdImage: file('cccd.jpg', ofSize(JPG, 10 * MB)) }));
+      await expectFilesNotKept();
       await t.reset();
 
       await expectRefusedWith(
         await submit({ citizenIdImage: file('cccd.jpg', ofSize(JPG, 10 * MB + 1)) }),
         '/body/citizenIdImage/0 too_big',
       );
-      expect(clamd.scanned).toHaveLength(1);
+      expect(clamd.scanned).toHaveLength(0);
     }, 30_000);
 
     it('citizenIdImage is exactly one file', async () => {
@@ -591,10 +581,9 @@ describe('partner applications (individual)', () => {
     it('otherDocuments takes none, one or two files and refuses a third: three files per application', async () => {
       expect((await submit({ otherDocuments: undefined })).status).toBe(201);
       expect((await submit({ otherDocuments: [file('a.pdf', PDF)] })).status).toBe(201);
-      const two = await expectStatus(201, submit({ otherDocuments: [file('a.pdf', PDF), file('b.png', PNG)] }));
-      expect(await filesOf(created(two).id)).toHaveLength(3);
+      expect((await submit({ otherDocuments: [file('a.pdf', PDF), file('b.png', PNG)] })).status).toBe(201);
+      await expectFilesNotKept();
       await t.reset();
-      clamd.scanned = [];
 
       await expectRefusedWith(
         await submit({ otherDocuments: [file('a.pdf', PDF), file('b.pdf', PDF), file('c.pdf', PDF)] }),
@@ -604,9 +593,7 @@ describe('partner applications (individual)', () => {
     });
 
     it('each other document is a pdf, jpg or png of at most 10 MB', async () => {
-      const res = await expectStatus(201, submit({ otherDocuments: [file('phu-luc.pdf', ofSize(PDF, 10 * MB))] }));
-      const sizes = (await filesOf(created(res).id)).map((row) => row.sizeBytes);
-      expect(sizes.sort((a, b) => a - b)).toEqual([JPG.length, 10 * MB]);
+      await expectStatus(201, submit({ otherDocuments: [file('phu-luc.pdf', ofSize(PDF, 10 * MB))] }));
       await t.reset();
 
       await expectRefusedWith(
@@ -630,27 +617,19 @@ describe('partner applications (individual)', () => {
       );
     }, 30_000);
 
-    describe('malware scan', () => {
-      it('an infected citizen ID image is refused as infected and nothing is stored', async () => {
-        const infected = Buffer.concat([JPG, Buffer.from(EICAR)]);
-        const res = await submit({ citizenIdImage: file('cccd.jpg', infected), otherDocuments: [file('a.pdf', PDF)] });
-        expect(res.status).toBe(422);
-        expect(res.body.code).toBe('PARTNER_APPLICATION_FILE_INFECTED');
-        expect(errorsOf(res)).toEqual(['/body/citizenIdImage/0 infected']);
-        expect(clamd.scanned).toHaveLength(2);
-        await expectNothingCreated();
-      });
-
-      it('a scan that fails or does not answer is refused as not scanned, to retry later', async () => {
-        for (const mode of ['error', 'silent'] as const) {
-          clamd.mode = mode;
-          const res = await submit({ otherDocuments: [file('a.pdf', PDF)] });
-          expect(res.status, mode).toBe(503);
-          expect(res.body.code).toBe('PARTNER_APPLICATION_FILE_SCAN_UNAVAILABLE');
-          expect(errorsOf(res)).toEqual(['/body/citizenIdImage/0 not_scanned', '/body/otherDocuments/0 not_scanned']);
-          await expectNothingCreated();
-        }
-      });
+    it('files are neither scanned nor stored: an infected file and a scanner that is down do not refuse the application', async () => {
+      const infected = Buffer.concat([JPG, Buffer.from(EICAR)]);
+      const res = await expectStatus(
+        201,
+        submit({ citizenIdImage: file('cccd.jpg', infected), otherDocuments: [file('a.pdf', PDF)] }),
+      );
+      expect(created(res).status).toBe('SUBMITTED');
+      for (const mode of ['error', 'silent'] as const) {
+        clamd.mode = mode;
+        expect((await submit({ otherDocuments: [file('a.pdf', PDF)] })).status, mode).toBe(201);
+      }
+      await expectFilesNotKept();
+      expect(await t.db.select().from(partnerApplications)).toHaveLength(3);
     });
   });
 });

@@ -23,12 +23,15 @@ import { FILE_INPUTS } from './partner-applications.js';
  */
 const FORM_LIMITS = { files: 10, fields: 100 };
 
-/** How a submission of either legal form is handled; `duplicate` names the identifier checked for duplicates. */
-const submitDescription = (duplicate: string) =>
+/**
+ * How a submission of either legal form is handled. `duplicate` names the identifier checked for duplicates,
+ * `fileHandling` what happens to valid files, and `accepted` what a success leaves behind.
+ */
+const submitDescription = (duplicate: string, fileHandling: string, accepted: string) =>
   'Không cần tài khoản. Một lần gửi multipart/form-data gồm thông tin đơn và các tệp; không có bước tải tệp lên trước. ' +
   'Hệ thống kiểm số tệp, định dạng (theo nội dung) và dung lượng của mọi tệp cùng mọi trường khác, báo mọi chỗ sai trong một lần (400 VALIDATION_FAILED); ' +
-  'đơn hợp lệ thì quét mã độc từng tệp rồi mới nhận đơn. Tệp nhiễm mã độc: 422 PARTNER_APPLICATION_FILE_INFECTED; chưa quét được: 503 PARTNER_APPLICATION_FILE_SCAN_UNAVAILABLE, thử lại sau; errors[].pointer chỉ tệp bị từ chối (code infected hoặc not_scanned). ' +
-  'Thành công: đơn ở SUBMITTED cùng các tệp; email xác nhận gửi tới email liên hệ trong đơn, người nộp đơn không nhận thông báo trong AarHub; mọi admin nền tảng nhận email và thông báo trong AarHub. ' +
+  fileHandling +
+  `Thành công: ${accepted}; email xác nhận gửi tới email liên hệ trong đơn, người nộp đơn không nhận thông báo trong AarHub; mọi admin nền tảng nhận email và thông báo trong AarHub. ` +
   `Trùng ${duplicate} với đối tác hoặc đơn đang mở vẫn được nhận và phản hồi không có cảnh báo nào. Lỗi: không có đơn nào được tạo và không tệp nào được lưu. ` +
   `Quá ${FORM_LIMITS.files} tệp hoặc ${FORM_LIMITS.fields} trường chữ: 400 BAD_REQUEST.`;
 
@@ -39,12 +42,19 @@ export class PartnerApplicationsController {
 
   @Post()
   @UseInterceptors(
-    AnyFilesInterceptor({ storage: attachmentStorage(FILE_INPUTS['tổ chức']), limits: FORM_LIMITS }),
+    AnyFilesInterceptor({
+      storage: attachmentStorage(FILE_INPUTS['tổ chức'], { storesFiles: true }),
+      limits: FORM_LIMITS,
+    }),
     FilesToBodyInterceptor,
   )
   @ApiOperation({
     summary: 'Nộp đơn đăng ký đối tác hình thức tổ chức, kèm tệp',
-    description: submitDescription('mã số thuế'),
+    description: submitDescription(
+      'mã số thuế',
+      'đơn hợp lệ thì quét mã độc từng tệp rồi mới nhận đơn. Tệp nhiễm mã độc: 422 PARTNER_APPLICATION_FILE_INFECTED; chưa quét được: 503 PARTNER_APPLICATION_FILE_SCAN_UNAVAILABLE, thử lại sau; errors[].pointer chỉ tệp bị từ chối (code infected hoặc not_scanned). ',
+      'đơn ở SUBMITTED cùng các tệp',
+    ),
   })
   @ApiConsumes('multipart/form-data')
   @Returns(HttpStatus.CREATED, PartnerApplicationSchema)
@@ -58,17 +68,22 @@ export class PartnerApplicationsController {
 
   @Post('individual')
   @UseInterceptors(
-    AnyFilesInterceptor({ storage: attachmentStorage(FILE_INPUTS['cá nhân']), limits: FORM_LIMITS }),
+    AnyFilesInterceptor({
+      storage: attachmentStorage(FILE_INPUTS['cá nhân'], { storesFiles: false }),
+      limits: FORM_LIMITS,
+    }),
     FilesToBodyInterceptor,
   )
   @ApiOperation({
     summary: 'Nộp đơn đăng ký đối tác hình thức cá nhân, kèm ảnh CCCD và hồ sơ khác',
-    description: submitDescription('số CCCD'),
+    description: submitDescription(
+      'số CCCD',
+      'tệp hợp lệ chỉ được kiểm, không được quét mã độc và không được lưu (quét và lưu tệp của đơn cá nhân thuộc ticket đính kèm tệp vào đơn cá nhân, UC-PARTNER-ONBOARDING-25). ',
+      'đơn ở SUBMITTED',
+    ),
   })
   @ApiConsumes('multipart/form-data')
   @Returns(HttpStatus.CREATED, IndividualPartnerApplicationSchema)
-  @ApiProblem(422, 'PARTNER_APPLICATION_FILE_INFECTED')
-  @ApiProblem(503, 'PARTNER_APPLICATION_FILE_SCAN_UNAVAILABLE')
   submitIndividual(
     @Body({ schema: IndividualApplicationCreateSchema }) body: IndividualApplicationCreate,
   ): Promise<IndividualPartnerApplicationResponse> {

@@ -25,7 +25,7 @@ export type LegalForm = (typeof LEGAL_FORMS)[number];
 export const APPLICATION_STATUSES = ['SUBMITTED', 'UNDER_REVIEW', 'NEEDS_INFO'] as const;
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 
-export const ATTACHMENT_KINDS = ['BUSINESS_REGISTRATION', 'CITIZEN_ID_IMAGE', 'OTHER'] as const;
+export const ATTACHMENT_KINDS = ['BUSINESS_REGISTRATION', 'OTHER'] as const;
 export type AttachmentKind = (typeof ATTACHMENT_KINDS)[number];
 
 export const NOTIFICATION_KINDS = ['APPLICATION_RECEIVED', 'APPLICATION_NEW_FOR_ADMIN'] as const;

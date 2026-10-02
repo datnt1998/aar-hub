@@ -41,13 +41,17 @@ export class PartnerApplicationsService {
     ]);
   }
 
-  /** Creates an individual application in SUBMITTED with its files, or nothing. Duplicate citizen IDs are accepted silently. */
+  /**
+   * Creates an individual application in SUBMITTED, or nothing. Duplicate citizen IDs are accepted silently. Its files
+   * are only checked for count, type and size (by the request schema): they are neither scanned nor stored, which the
+   * ticket of UC-PARTNER-ONBOARDING-25 adds (Q-PARTNER-ONBOARDING-148).
+   */
   submitIndividual(input: IndividualApplicationCreate): Promise<IndividualPartnerApplicationResponse> {
-    const { citizenIdImage, otherDocuments, ...application } = input;
-    return this.submit(application, [
-      ...filesOf('citizenIdImage', 'CITIZEN_ID_IMAGE', citizenIdImage),
-      ...filesOf('otherDocuments', 'OTHER', otherDocuments),
-    ]);
+    const { legalForm, applicantName, contactEmail, legalName, citizenId, salesOnly, declaredArtists } = input;
+    return this.submit(
+      { legalForm, applicantName, contactEmail, legalName, citizenId, salesOnly, declaredArtists },
+      [],
+    );
   }
 
   /**
