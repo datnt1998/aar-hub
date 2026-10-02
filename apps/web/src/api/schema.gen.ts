@@ -180,7 +180,7 @@ export interface components {
             salesOnly: boolean;
             declaredArtists: string[];
         };
-        /** @description Thông tin định danh: "tổ chức" kèm taxCode, hoặc "cá nhân" kèm citizenId. */
+        /** @description Thông tin định danh, mỗi hình thức chỉ nhận trường của nó: "tổ chức" kèm taxCode (không có citizenId), "cá nhân" kèm citizenId (không có taxCode). Cá nhân chỉ được so trùng theo số CCCD. */
         PartnerIdentity: components["schemas"]["OrganizationIdentity"] | components["schemas"]["IndividualIdentity"];
         OrganizationIdentity: {
             /**

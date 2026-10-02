@@ -16,7 +16,11 @@ const individualIdentity = {
   citizenId: citizenId().meta({ description: `Số CCCD, bắt buộc với cá nhân: đúng 12 chữ số. ${TRIMMED}` }),
 };
 
-/** Identity of the legal entity, by legal form. Each form takes only its own identity field. */
+/**
+ * Identity of the legal entity, by legal form. Each form takes only its own identity field (Q-PARTNER-ONBOARDING-147):
+ * an organization has a tax code and no citizen id; an individual has a citizen id, no tax code, and is matched for
+ * duplicates on the citizen id only.
+ */
 export const PartnerIdentitySchema = z
   .discriminatedUnion('legalForm', [
     z.strictObject(organizationIdentity).meta({ id: 'OrganizationIdentity' }),
@@ -24,7 +28,8 @@ export const PartnerIdentitySchema = z
   ])
   .meta({
     id: 'PartnerIdentity',
-    description: 'Thông tin định danh: "tổ chức" kèm taxCode, hoặc "cá nhân" kèm citizenId.',
+    description:
+      'Thông tin định danh, mỗi hình thức chỉ nhận trường của nó: "tổ chức" kèm taxCode (không có citizenId), "cá nhân" kèm citizenId (không có taxCode). Cá nhân chỉ được so trùng theo số CCCD.',
   });
 
 export type PartnerIdentity = z.infer<typeof PartnerIdentitySchema>;

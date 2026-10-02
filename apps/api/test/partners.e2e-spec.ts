@@ -218,7 +218,7 @@ describe('preparing a direct partner creation', () => {
       expect(result.canConfirm).toBe(false);
     });
 
-    it('an individual is matched on the citizen id of partners and open applications', async () => {
+    it('an individual is matched on the citizen id only, of partners and open applications (Q-PARTNER-ONBOARDING-147)', async () => {
       const partner = await seedPartner('SUSPENDED', { citizenId: CITIZEN_ID });
       const application = await seedApplication('NEEDS_INFO', { taxCode: '0388888888', citizenId: CITIZEN_ID });
       await seedPartner('ACTIVE', { citizenId: '079000000000' });
@@ -344,7 +344,7 @@ describe('preparing a direct partner creation', () => {
       );
     });
 
-    it('each legal form takes only its own identity field', async () => {
+    it('each legal form takes only its own identity field (Q-PARTNER-ONBOARDING-147)', async () => {
       expect(await refused('citizenId', CITIZEN_ID, 'tổ chức')).toBe('unrecognized_keys');
       expect(await refused('taxCode', TAX_CODE, 'cá nhân')).toBe('unrecognized_keys');
       expectInvalid(
