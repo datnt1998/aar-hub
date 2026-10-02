@@ -11,8 +11,12 @@ import {
 /** Length in Unicode characters of an already trimmed, NFC-normalised string. */
 const characters = (value: string): number => [...value].length;
 
-/** Exactly one @, a dot after it, no whitespace (FD-EMAIL). Matching is case-insensitive, so the value is kept as typed. */
-const EMAIL_SHAPE = /^[^@\s]*@[^@\s]*\.[^@\s]*$/;
+/**
+ * FD-EMAIL with DEC-PARTNER-ONBOARDING-015: exactly one @, at least one character before it, a dot after it that is
+ * neither the first nor the last character of the part after @, no whitespace. Matching is case-insensitive, so the
+ * value is kept as typed.
+ */
+const EMAIL_SHAPE = /^[^@\s]+@(?=[^@\s]*\.)[^.@\s][^@\s]*[^.@\s]$/;
 
 /** Exactly 10 or 13 digits, no hyphen, no space (FD-TAX-CODE). */
 const TAX_CODE_SHAPE = /^(?:[0-9]{10}|[0-9]{13})$/;
@@ -61,7 +65,7 @@ export const OrganizationApplicationCreateSchema = z
     contactEmail: text(1, 254, { pattern: EMAIL_SHAPE, format: 'email' }).meta({
       format: 'email',
       description:
-        'Email liên hệ, tối đa 254 ký tự: đúng một dấu @, phần sau @ có dấu chấm, không có khoảng trắng; so khớp không phân biệt hoa thường',
+        'Email liên hệ, tối đa 254 ký tự: đúng một dấu @, có ít nhất một ký tự trước @, phần sau @ có dấu chấm nhưng không bắt đầu và không kết thúc bằng dấu chấm, không có khoảng trắng; so khớp không phân biệt hoa thường',
     }),
     legalName: text(1, 255).meta({ description: 'Tên pháp nhân, 1–255 ký tự, không chỉ gồm khoảng trắng' }),
     taxCode: text(1, 13, { pattern: TAX_CODE_SHAPE, format: 'regex' }).meta({

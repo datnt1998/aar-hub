@@ -428,15 +428,30 @@ describe('partner applications (organization)', () => {
       expect(await refused('legalName', '    ')).toBe('too_small');
     });
 
-    it('contactEmail is at most 254 characters with exactly one @, a dot after it and no spaces', async () => {
+    it('contactEmail is at most 254 characters: one @, something before it, an inner dot after it, no spaces', async () => {
       await accepted('contactEmail', 'a@b.c');
+      await accepted('contactEmail', 'a.b+c@mail.example.co');
       const longest = `${'a'.repeat(254 - '@example.com'.length)}@example.com`;
       expect(longest).toHaveLength(254);
       await accepted('contactEmail', longest);
       expect(await refused('contactEmail', `a${longest}`)).toBe('too_big');
       expect(await refused('contactEmail', '')).toBe('too_small');
       expect(await refused('contactEmail', '   ')).toBe('too_small');
-      for (const bad of ['b.y.com', 'b@@y.com', 'b@y@z.com', 'b@y', 'b@com', 'b y@z.com', 'b@y .com']) {
+      for (const bad of [
+        'b.y.com',
+        'b@@y.com',
+        'b@y@z.com',
+        'b@y',
+        'b@com',
+        'b y@z.com',
+        'b@y .com',
+        '@y.com',
+        '@.',
+        'a@.',
+        'a@.com',
+        'a@com.',
+        'a@b.',
+      ]) {
         expect(await refused('contactEmail', bad), bad).toBe('invalid_format');
       }
       await refused('contactEmail', 7);

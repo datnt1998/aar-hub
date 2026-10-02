@@ -99,7 +99,7 @@ export interface components {
             applicantName: string;
             /**
              * Format: email
-             * @description Email liên hệ, tối đa 254 ký tự: đúng một dấu @, phần sau @ có dấu chấm, không có khoảng trắng; so khớp không phân biệt hoa thường
+             * @description Email liên hệ, tối đa 254 ký tự: đúng một dấu @, có ít nhất một ký tự trước @, phần sau @ có dấu chấm nhưng không bắt đầu và không kết thúc bằng dấu chấm, không có khoảng trắng; so khớp không phân biệt hoa thường
              */
             contactEmail: string;
             /** @description Tên pháp nhân, 1–255 ký tự, không chỉ gồm khoảng trắng */
