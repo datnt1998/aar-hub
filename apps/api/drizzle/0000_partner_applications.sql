@@ -41,6 +41,7 @@ CREATE TABLE "partner_applications" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"type" text NOT NULL,
 	"status" text NOT NULL,
+	"applicant_account_id" uuid,
 	"contact_name" text NOT NULL,
 	"contact_email" text NOT NULL,
 	"legal_name" text NOT NULL,
@@ -62,6 +63,7 @@ ALTER TABLE "attachments" ADD CONSTRAINT "attachments_application_id_partner_app
 ALTER TABLE "email_outbox" ADD CONSTRAINT "email_outbox_application_id_partner_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."partner_applications"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "notifications" ADD CONSTRAINT "notifications_account_id_accounts_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."accounts"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "notifications" ADD CONSTRAINT "notifications_application_id_partner_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."partner_applications"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "partner_applications" ADD CONSTRAINT "partner_applications_applicant_account_id_accounts_id_fk" FOREIGN KEY ("applicant_account_id") REFERENCES "public"."accounts"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "accounts_email_lower_idx" ON "accounts" USING btree (lower("email"));--> statement-breakpoint
 CREATE INDEX "attachments_application_id_idx" ON "attachments" USING btree ("application_id");--> statement-breakpoint
 CREATE INDEX "notifications_account_id_idx" ON "notifications" USING btree ("account_id");--> statement-breakpoint

@@ -11,7 +11,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["HealthController_check"];
+        get: operations["Health_check"];
         put?: never;
         post?: never;
         delete?: never;
@@ -31,9 +31,9 @@ export interface paths {
         put?: never;
         /**
          * Tải lên một file đính kèm
-         * @description Bước trước khi nộp đơn. Dùng id trả về trong businessRegistrationAttachmentId / otherAttachmentIds. Không cần tài khoản.
+         * @description Bước trước khi nộp đơn. Dùng id trả về trong businessRegistrationAttachmentId / otherAttachmentIds. Không cần tài khoản. File tối đa 10485760 byte.
          */
-        post: operations["PartnerApplicationsController_uploadAttachment"];
+        post: operations["PartnerApplications_uploadAttachment"];
         delete?: never;
         options?: never;
         head?: never;
@@ -53,7 +53,7 @@ export interface paths {
          * Nộp đơn đăng ký đối tác hình thức tổ chức
          * @description Không cần tài khoản. Thành công: đơn ở SUBMITTED; email xác nhận gửi tới email liên hệ trong đơn; thông báo trong AarHub chỉ gửi tới tài khoản gắn với đơn (đơn gắn tài khoản khi có đăng nhập, chưa nối vào API); mọi admin nền tảng nhận email và thông báo trong AarHub. Trùng mã số thuế với đối tác hoặc đơn đang mở vẫn được nhận và không có cảnh báo nào trong phản hồi. Lỗi: không có đơn nào được tạo.
          */
-        post: operations["PartnerApplicationsController_submitOrganization"];
+        post: operations["PartnerApplications_submitOrganization"];
         delete?: never;
         options?: never;
         head?: never;
@@ -64,7 +64,7 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        HealthDto: {
+        Health: {
             /**
              * @description API process is up and serving requests
              * @enum {string}
@@ -73,7 +73,7 @@ export interface components {
             /** @description Seconds since the API process started */
             uptimeSeconds: number;
         };
-        AttachmentDto: {
+        Attachment: {
             /** Format: uuid */
             id: string;
             /** @description Tên file gốc */
@@ -82,14 +82,7 @@ export interface components {
             contentType: string;
             sizeBytes: number;
         };
-        PlannedArtistDto: {
-            /**
-             * @description Tên nghệ sĩ dự kiến
-             * @example Nguyễn Văn A
-             */
-            name: string;
-        };
-        SubmitOrganizationApplicationDto: {
+        OrganizationApplicationCreateRequest: {
             /** @description Họ tên người nộp đơn (người liên hệ) */
             contactName: string;
             /**
@@ -102,21 +95,34 @@ export interface components {
             /** @description Mã số thuế của pháp nhân */
             taxId: string;
             /**
-             * @description Chọn "chỉ bán hàng": không cần khai báo nghệ sĩ dự kiến. Mặc định false.
+             * @description Chọn "chỉ bán hàng": không cần khai báo nghệ sĩ dự kiến
              * @default false
              */
             sellOnly: boolean;
-            /** @description Nghệ sĩ dự kiến. Bắt buộc ít nhất một nghệ sĩ khi sellOnly là false. */
-            plannedArtists?: components["schemas"]["PlannedArtistDto"][];
+            /**
+             * @description Nghệ sĩ dự kiến. Bắt buộc ít nhất một nghệ sĩ khi sellOnly là false.
+             * @default []
+             */
+            plannedArtists: components["schemas"]["PlannedArtist"][];
             /**
              * Format: uuid
              * @description Id file giấy đăng ký kinh doanh, lấy từ POST /api/partner-applications/attachments
              */
             businessRegistrationAttachmentId: string;
-            /** @description Id các file hồ sơ khác (tùy chọn), tối đa 2 (cả đơn tối đa 3 file, tính cả giấy đăng ký kinh doanh). Lấy từ POST /api/partner-applications/attachments */
-            otherAttachmentIds?: string[];
+            /**
+             * @description Id các file hồ sơ khác (tùy chọn), tối đa 2: cả đơn tối đa 3 file, tính cả giấy đăng ký kinh doanh. Mỗi file chỉ dùng một lần trong đơn.
+             * @default []
+             */
+            otherAttachmentIds: string[];
         };
-        PartnerApplicationDto: {
+        PlannedArtist: {
+            /**
+             * @description Tên nghệ sĩ dự kiến
+             * @example Nguyễn Văn A
+             */
+            name: string;
+        };
+        PartnerApplication: {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
@@ -126,33 +132,47 @@ export interface components {
             /** Format: date-time */
             submittedAt: string;
             contactName: string;
-            /** Format: email */
             contactEmail: string;
             legalName: string;
             taxId: string;
             sellOnly: boolean;
-            plannedArtists: components["schemas"]["PlannedArtistDto"][];
-            businessRegistration: components["schemas"]["AttachmentDto"];
-            otherAttachments: components["schemas"]["AttachmentDto"][];
+            plannedArtists: components["schemas"]["PlannedArtist"][];
+            businessRegistration: components["schemas"]["Attachment"];
+            otherAttachments: components["schemas"]["Attachment"][];
         };
-        FieldErrorDto: {
+        /** @description Error response (RFC 9457 Problem Details) with a required `code` */
+        Problem: {
+            /** @description Problem type URI; `about:blank` when `code` is enough */
+            type: string;
+            /** @description HTTP reason phrase of `status` */
+            title: string;
+            /** @description HTTP status code */
+            status: number;
             /**
-             * @description Trường thiếu hoặc không hợp lệ
-             * @enum {string}
+             * @description Stable machine-readable error code; clients branch and translate on this
+             * @example VALIDATION_FAILED
              */
-            field: "contactName" | "contactEmail" | "legalName" | "taxId" | "sellOnly" | "plannedArtists" | "businessRegistrationAttachmentId" | "otherAttachmentIds";
-            /**
-             * @description REQUIRED: thiếu. INVALID: sai định dạng, hoặc file không tồn tại / đã gắn vào đơn khác. TOO_MANY: quá 3 file (tính cả giấy đăng ký kinh doanh).
-             * @enum {string}
-             */
-            reason: "REQUIRED" | "INVALID" | "TOO_MANY";
+            code: string;
+            /** @description English explanation for developers; never shown as UI text */
+            detail?: string;
+            /** @description Request path that produced the error */
+            instance: string;
+            /** @description Per-input errors when `code` is VALIDATION_FAILED */
+            errors?: components["schemas"]["FieldError"][];
         };
-        ApplicationValidationErrorDto: {
-            /** @enum {number} */
-            statusCode: 400;
-            message: string;
-            /** @description Mọi trường lỗi; không có đơn nào được tạo. */
-            errors: components["schemas"]["FieldErrorDto"][];
+        FieldError: {
+            /**
+             * @description JSON Pointer (RFC 6901) to the invalid input, prefixed by its location: `/body/email`, `/query/page`, `/path/id`
+             * @example /body/email
+             */
+            pointer: string;
+            /**
+             * @description Machine-readable reason (schema issue code such as `too_small`, `invalid_format`)
+             * @example invalid_format
+             */
+            code: string;
+            /** @description English explanation for developers; clients show their own text */
+            detail: string;
         };
     };
     responses: never;
@@ -163,7 +183,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    HealthController_check: {
+    Health_check: {
         parameters: {
             query?: never;
             header?: never;
@@ -177,12 +197,21 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HealthDto"];
+                    "application/json": components["schemas"]["Health"];
+                };
+            };
+            /** @description Error (Problem Details) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
     };
-    PartnerApplicationsController_uploadAttachment: {
+    PartnerApplications_uploadAttachment: {
         parameters: {
             query?: never;
             header?: never;
@@ -203,26 +232,45 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AttachmentDto"];
+                    "application/json": components["schemas"]["Attachment"];
                 };
             };
-            /** @description Thiếu file hoặc file rỗng */
+            /** @description PARTNER_APPLICATION_FILE_REQUIRED */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"] & {
+                        /** @enum {string} */
+                        code: "PARTNER_APPLICATION_FILE_REQUIRED";
+                    };
+                };
             };
-            /** @description File lớn hơn 10485760 byte */
+            /** @description PAYLOAD_TOO_LARGE */
             413: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"] & {
+                        /** @enum {string} */
+                        code: "PAYLOAD_TOO_LARGE";
+                    };
+                };
+            };
+            /** @description Error (Problem Details) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
             };
         };
     };
-    PartnerApplicationsController_submitOrganization: {
+    PartnerApplications_submitOrganization: {
         parameters: {
             query?: never;
             header?: never;
@@ -231,7 +279,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SubmitOrganizationApplicationDto"];
+                "application/json": components["schemas"]["OrganizationApplicationCreateRequest"];
             };
         };
         responses: {
@@ -240,16 +288,28 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PartnerApplicationDto"];
+                    "application/json": components["schemas"]["PartnerApplication"];
                 };
             };
-            /** @description Thiếu hoặc sai thông tin bắt buộc; errors liệt kê từng trường. */
-            400: {
+            /** @description PARTNER_APPLICATION_BUSINESS_REGISTRATION_INVALID, PARTNER_APPLICATION_OTHER_ATTACHMENT_INVALID */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApplicationValidationErrorDto"];
+                    "application/problem+json": components["schemas"]["Problem"] & {
+                        /** @enum {string} */
+                        code: "PARTNER_APPLICATION_BUSINESS_REGISTRATION_INVALID" | "PARTNER_APPLICATION_OTHER_ATTACHMENT_INVALID";
+                    };
+                };
+            };
+            /** @description Error (Problem Details) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };

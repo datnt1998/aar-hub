@@ -1,2 +1,14 @@
 packages:
   - apps/*
+
+engineStrict: true
+minimumReleaseAge: 1440
+strictDepBuilds: true
+verifyDepsBeforeRun: install
+
+# Build scripts that never need to run:
+# - @scarf/scarf: postinstall telemetry pulled in by @nestjs/swagger.
+# - esbuild (via drizzle-kit): postinstall only verifies the platform binary that the optional dependency already ships.
+ignoredBuiltDependencies:
+  - '@scarf/scarf'
+  - esbuild

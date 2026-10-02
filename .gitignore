@@ -5,5 +5,10 @@ dist/
 coverage/
 test-results/
 playwright-report/
-.env
+.env*
+!.env.example
 .DS_Store
+
+# Local agent tooling (AgentKit); see .devkit/decisions/0001-devkit-va-cong-cu-phu-tro.md
+.omp/
+.agentkit/

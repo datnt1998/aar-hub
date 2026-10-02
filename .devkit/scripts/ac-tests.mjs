@@ -13,7 +13,7 @@ import { glob, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = fileURLToPath(new URL('..', import.meta.url));
+const root = fileURLToPath(new URL('../..', import.meta.url));
 const args = process.argv.slice(2);
 const json = args.includes('--json');
 const prefixes = args.filter((arg) => arg !== '--json');
@@ -29,7 +29,8 @@ for await (const file of glob(TEST_FILES, { cwd: root, exclude: (name) => name =
     const title = match[2];
     const line = source.slice(0, match.index).split('\n').length;
     for (const id of new Set(title.match(AC_ID))) {
-      if (prefixes.length === 0 || prefixes.some((prefix) => id.startsWith(prefix))) hits.push({ id, file, line, title });
+      if (prefixes.length === 0 || prefixes.some((prefix) => id.startsWith(prefix)))
+        hits.push({ id, file, line, title });
     }
   }
 }
@@ -39,7 +40,13 @@ hits.sort((a, b) => a.id.localeCompare(b.id) || a.file.localeCompare(b.file) || 
 if (json) {
   const covered = new Map();
   for (const { id, title } of hits) covered.set(id, [...(covered.get(id) ?? []), title]);
-  console.log(JSON.stringify([...covered].map(([id, tests]) => ({ id, tests })), null, 2));
+  console.log(
+    JSON.stringify(
+      [...covered].map(([id, tests]) => ({ id, tests })),
+      null,
+      2,
+    ),
+  );
 } else {
   for (const { id, file, line, title } of hits) console.log(`${id}\t${file}:${line}\t${title}`);
 }

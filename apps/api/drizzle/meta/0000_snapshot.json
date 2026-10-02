@@ -1,5 +1,5 @@
 {
-  "id": "f9e3cee3-6c7b-4dfb-ad07-c6ced2ac68ac",
+  "id": "ed1a6f62-40a7-4629-b49a-d6261ceb0016",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -353,6 +353,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "applicant_account_id": {
+          "name": "applicant_account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "contact_name": {
           "name": "contact_name",
           "type": "text",
@@ -415,7 +421,21 @@
           "with": {}
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "partner_applications_applicant_account_id_accounts_id_fk": {
+          "name": "partner_applications_applicant_account_id_accounts_id_fk",
+          "tableFrom": "partner_applications",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "applicant_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

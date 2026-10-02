@@ -1,0 +1,5 @@
+pnpm-lock.yaml
+**/*.md
+apps/api/openapi.json
+**/*.gen.ts
+apps/api/drizzle/
