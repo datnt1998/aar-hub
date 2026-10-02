@@ -7,6 +7,8 @@ import {
   type ApplicationFile,
   type NewApplication,
   planNotifications,
+  RESUBMIT_WINDOW_MS,
+  submissionKey,
 } from './partner-applications.js';
 import { PartnerApplicationsRepository } from './partner-applications.repository.js';
 import type {
@@ -22,6 +24,16 @@ type SubmittedFile = ApplicationFile & { pointer: string };
 /** The files of one input, tagged with their kind and pointer. */
 function filesOf(input: string, kind: ApplicationFile['kind'], files: AcceptedFile[]): SubmittedFile[] {
   return files.map((file, index) => ({ ...file, kind, pointer: `/body/${input}/${index}` }));
+}
+
+/** An application as its submitter is shown it once accepted. */
+type Submitted<T extends NewApplication> = T & { id: string; status: 'SUBMITTED'; submittedAt: string };
+
+/** Thrown inside the transaction to roll it back when an identical submission was accepted meanwhile. */
+class AcceptedMeanwhile extends Error {
+  constructor(readonly applicationId: string) {
+    super('An identical submission was accepted meanwhile');
+  }
 }
 
 @Injectable()
@@ -60,11 +72,21 @@ export class PartnerApplicationsService {
    * anything is stored, and one infected or unscanned file refuses the whole application (BR-PARTNER-ONBOARDING-035,
    * -038). The confirmation email goes to the contact email in the application; the applicant gets no in-app
    * notification. Every platform admin gets an email and an in-app notification.
+   *
+   * A submission identical to an application accepted at most 1 minute earlier repeats it (BR-PARTNER-ONBOARDING-042):
+   * nothing is scanned, stored or sent, and the submitter is shown that earlier application. The check before scanning
+   * spares the scan; the claim in the transaction decides when an identical submission is being accepted meanwhile.
    */
-  private async submit<T extends NewApplication>(
-    application: T,
-    files: SubmittedFile[],
-  ): Promise<T & { id: string; status: 'SUBMITTED'; submittedAt: string }> {
+  private async submit<T extends NewApplication>(application: T, files: SubmittedFile[]): Promise<Submitted<T>> {
+    const key = submissionKey(application);
+    const earlier = await this.repository.findRecentSubmission(
+      key,
+      new Date(this.clock.now().getTime() - RESUBMIT_WINDOW_MS),
+    );
+    if (earlier) {
+      return this.repeat(application, earlier);
+    }
+
     const verdicts = await Promise.all(files.map((file) => this.scanner.scan(file.content)));
     const refused = files.flatMap((file, index) => {
       const verdict = verdicts[index];
@@ -84,16 +106,42 @@ export class PartnerApplicationsService {
     }
 
     const now = this.clock.now();
-    return this.repository.transaction(async (tx) => {
-      const { id, submittedAt } = await this.repository.insertApplication(tx, application, now);
-      await this.repository.insertFiles(tx, id, files, now);
+    try {
+      return await this.repository.transaction(async (tx) => {
+        const { id, submittedAt } = await this.repository.insertApplication(tx, application, now);
+        const holder = await this.repository.claimSubmission(
+          tx,
+          key,
+          id,
+          now,
+          new Date(now.getTime() - RESUBMIT_WINDOW_MS),
+        );
+        if (holder !== id) {
+          throw new AcceptedMeanwhile(holder);
+        }
+        await this.repository.insertFiles(tx, id, files, now);
 
-      const admins = await this.repository.findPlatformAdmins(tx);
-      const { inApp, emails } = planNotifications(application.legalForm, application.contactEmail, admins);
-      await this.repository.insertNotifications(tx, id, inApp, now);
-      await this.repository.insertEmails(tx, id, emails, now);
+        const admins = await this.repository.findPlatformAdmins(tx);
+        const { inApp, emails } = planNotifications(application.legalForm, application.contactEmail, admins);
+        await this.repository.insertNotifications(tx, id, inApp, now);
+        await this.repository.insertEmails(tx, id, emails, now);
 
-      return { ...application, id, status: 'SUBMITTED' as const, submittedAt: submittedAt.toISOString() };
-    });
+        return { ...application, id, status: 'SUBMITTED' as const, submittedAt: submittedAt.toISOString() };
+      });
+    } catch (error) {
+      if (error instanceof AcceptedMeanwhile) {
+        return this.repeat(application, error.applicationId);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * The earlier application a repeated submission is shown, as its first submission returned it. Legal form and
+   * identifier are the same by the submission key; every other field is the earlier one's.
+   */
+  private async repeat<T extends NewApplication>(application: T, id: string): Promise<Submitted<T>> {
+    const { submittedAt, ...earlier } = await this.repository.findAcceptedApplication(id);
+    return { ...application, ...earlier, status: 'SUBMITTED', submittedAt: submittedAt.toISOString() };
   }
 }

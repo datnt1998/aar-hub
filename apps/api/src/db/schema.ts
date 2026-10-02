@@ -7,6 +7,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -95,6 +96,26 @@ export const partnerApplications = pgTable(
       sql`(${t.legalForm} = 'tổ chức' AND ${t.taxCode} IS NOT NULL AND ${t.citizenId} IS NULL) OR (${t.legalForm} = 'cá nhân' AND ${t.citizenId} IS NOT NULL AND ${t.taxCode} IS NULL)`,
     ),
   ],
+);
+
+/**
+ * The latest accepted submission of each identity (BR-PARTNER-ONBOARDING-042): legal form, tax code or citizen ID
+ * (`legal_id`), and contact email in lower case. A submission claims the row in the transaction that stores its
+ * application. The primary key makes an identical submission that arrives meanwhile wait for that transaction and then
+ * see the claim; once the row is older than the resubmit window, the next identical submission takes it over.
+ */
+export const applicationSubmissions = pgTable(
+  'application_submissions',
+  {
+    legalForm: text('legal_form').$type<LegalForm>().notNull(),
+    legalId: text('legal_id').notNull(),
+    contactEmail: text('contact_email').notNull(),
+    applicationId: uuid('application_id')
+      .notNull()
+      .references(() => partnerApplications.id),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.legalForm, t.legalId, t.contactEmail] })],
 );
 
 /**

@@ -95,6 +95,41 @@ export type NewApplication = {
   declaredArtists: string[];
 } & ({ legalForm: 'tổ chức'; taxCode: string } | { legalForm: 'cá nhân'; citizenId: string });
 
+/**
+ * How long after an application is accepted an identical submission repeats it instead of being a new application
+ * (BR-PARTNER-ONBOARDING-042): 1 minute, bounds included.
+ */
+export const RESUBMIT_WINDOW_MS = 60_000;
+
+/**
+ * What makes two submissions identical (BR-PARTNER-ONBOARDING-042): the legal form, the tax code of an organization or
+ * the citizen ID of an individual, and the contact email, which matches regardless of case. No other field counts.
+ */
+export interface SubmissionKey {
+  legalForm: LegalForm;
+  legalId: string;
+  contactEmail: string;
+}
+
+export function submissionKey(application: NewApplication): SubmissionKey {
+  return {
+    legalForm: application.legalForm,
+    legalId: application.legalForm === 'tổ chức' ? application.taxCode : application.citizenId,
+    contactEmail: application.contactEmail.toLowerCase(),
+  };
+}
+
+/** An accepted application as its submitter was shown it, without the legal form and identifier its key holds. */
+export interface AcceptedApplication {
+  id: string;
+  submittedAt: Date;
+  applicantName: string;
+  contactEmail: string;
+  legalName: string;
+  salesOnly: boolean;
+  declaredArtists: string[];
+}
+
 export interface AdminContact {
   id: string;
   email: string;
