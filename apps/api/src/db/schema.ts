@@ -16,10 +16,12 @@ const bytea = customType<{ data: Buffer; driverData: Buffer }>({
   dataType: () => 'bytea',
 });
 
-export const APPLICATION_TYPES = ['ORGANIZATION'] as const;
-export type ApplicationType = (typeof APPLICATION_TYPES)[number];
+/** Hình thức (legalForm) values as the ticket gives them. Only 'tổ chức' is submitted through this ticket; 'cá nhân' belongs to another use case. */
+export const LEGAL_FORMS = ['tổ chức', 'cá nhân'] as const;
+export type LegalForm = (typeof LEGAL_FORMS)[number];
 
-export const APPLICATION_STATUSES = ['SUBMITTED'] as const;
+/** Statuses an application can be in. Other tickets own the transitions after SUBMITTED. */
+export const APPLICATION_STATUSES = ['SUBMITTED', 'UNDER_REVIEW', 'NEEDS_INFO'] as const;
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 
 export const PARTNER_STATUSES = ['PENDING_ACTIVATION', 'ACTIVE', 'TERMINATED'] as const;
@@ -43,40 +45,36 @@ export const accounts = pgTable(
   (t) => [uniqueIndex('accounts_email_lower_idx').on(sql`lower(${t.email})`)],
 );
 
-/** Partner (ENT-PARTNER). Minimal columns for matching tax ids; nothing in the submit flow reads it yet (duplicates are accepted silently). */
+/** Partner (ENT-PARTNER). Minimal columns for matching tax codes; nothing in the submit flow reads it (duplicates are accepted silently). */
 export const partners = pgTable(
   'partners',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     legalName: text('legal_name').notNull(),
-    taxId: text('tax_id').notNull(),
+    taxCode: text('tax_code').notNull(),
     status: text('status').$type<PartnerStatus>().notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('partners_tax_id_idx').on(t.taxId)],
+  (t) => [index('partners_tax_code_idx').on(t.taxCode)],
 );
-
-export type PlannedArtist = { name: string };
 
 /** ENT-PARTNER-APPLICATION. */
 export const partnerApplications = pgTable(
   'partner_applications',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    type: text('type').$type<ApplicationType>().notNull(),
+    legalForm: text('legal_form').$type<LegalForm>().notNull(),
     status: text('status').$type<ApplicationStatus>().notNull(),
-    /** Account the applicant was logged in with; null for an anonymous applicant. */
-    applicantAccountId: uuid('applicant_account_id').references(() => accounts.id),
-    contactName: text('contact_name').notNull(),
+    applicantName: text('applicant_name').notNull(),
     contactEmail: text('contact_email').notNull(),
     legalName: text('legal_name').notNull(),
-    taxId: text('tax_id').notNull(),
-    /** "Chỉ bán hàng": no planned artists required. */
-    sellOnly: boolean('sell_only').notNull().default(false),
-    plannedArtists: jsonb('planned_artists').$type<PlannedArtist[]>().notNull(),
+    taxCode: text('tax_code').notNull(),
+    /** "Chỉ bán hàng": no declared artists required. */
+    salesOnly: boolean('sales_only').notNull().default(false),
+    declaredArtists: jsonb('declared_artists').$type<string[]>().notNull(),
     submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('partner_applications_tax_id_idx').on(t.taxId)],
+  (t) => [index('partner_applications_tax_code_idx').on(t.taxCode)],
 );
 
 /** Uploaded file. Starts unattached (upload step) and is attached to an application when it is submitted. */

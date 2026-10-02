@@ -3,7 +3,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ApiProblem, Returns } from '../common/http/decorators.js';
 import { FileToBodyInterceptor } from './file-to-body.interceptor.js';
-import { MAX_ATTACHMENT_BYTES } from './partner-applications.js';
+import { MAX_FILE_BYTES } from './partner-applications.js';
 import {
   type AttachmentUploadForm,
   AttachmentSchema,
@@ -22,14 +22,15 @@ export class PartnerApplicationsController {
   constructor(private readonly applications: PartnerApplicationsService) {}
 
   @Post('attachments')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_ATTACHMENT_BYTES } }), FileToBodyInterceptor)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_FILE_BYTES } }), FileToBodyInterceptor)
   @ApiOperation({
     summary: 'Tải lên một file đính kèm',
-    description: `Bước trước khi nộp đơn. Dùng id trả về trong businessRegistrationAttachmentId / otherAttachmentIds. Không cần tài khoản. File tối đa ${MAX_ATTACHMENT_BYTES} byte.`,
+    description: `Bước trước khi nộp đơn. Dùng id trả về trong businessRegistration / otherDocuments. Không cần tài khoản. File pdf, jpg hoặc png, tối đa ${MAX_FILE_BYTES} byte (10 MB); loại khác trả lỗi PARTNER_APPLICATION_FILE_TYPE_NOT_ALLOWED.`,
   })
   @ApiConsumes('multipart/form-data')
   @Returns(HttpStatus.CREATED, AttachmentSchema)
   @ApiProblem(413, 'PAYLOAD_TOO_LARGE')
+  @ApiProblem(422, 'PARTNER_APPLICATION_FILE_TYPE_NOT_ALLOWED')
   uploadAttachment(
     @Body({ schema: AttachmentUploadFormSchema }) form: AttachmentUploadForm,
   ): Promise<AttachmentResponse> {
@@ -40,11 +41,11 @@ export class PartnerApplicationsController {
   @ApiOperation({
     summary: 'Nộp đơn đăng ký đối tác hình thức tổ chức',
     description:
-      'Không cần tài khoản. Thành công: đơn ở SUBMITTED; email xác nhận gửi tới email liên hệ trong đơn; thông báo trong AarHub chỉ gửi tới tài khoản gắn với đơn (đơn gắn tài khoản khi có đăng nhập, chưa nối vào API); mọi admin nền tảng nhận email và thông báo trong AarHub. ' +
-      'Trùng mã số thuế với đối tác hoặc đơn đang mở vẫn được nhận và không có cảnh báo nào trong phản hồi. Lỗi: không có đơn nào được tạo.',
+      'Không cần tài khoản. Thành công: đơn ở SUBMITTED; email xác nhận gửi tới email liên hệ trong đơn, người nộp đơn không nhận thông báo trong AarHub; mọi admin nền tảng nhận email và thông báo trong AarHub. ' +
+      'Trùng mã số thuế với đối tác hoặc đơn đang mở vẫn được nhận và phản hồi không có cảnh báo nào. Lỗi: không có đơn nào được tạo.',
   })
   @Returns(HttpStatus.CREATED, PartnerApplicationSchema)
-  @ApiProblem(422, 'PARTNER_APPLICATION_BUSINESS_REGISTRATION_INVALID', 'PARTNER_APPLICATION_OTHER_ATTACHMENT_INVALID')
+  @ApiProblem(422, 'PARTNER_APPLICATION_BUSINESS_REGISTRATION_INVALID', 'PARTNER_APPLICATION_OTHER_DOCUMENTS_INVALID')
   submitOrganization(
     @Body({ schema: OrganizationApplicationCreateSchema }) body: OrganizationApplicationCreate,
   ): Promise<PartnerApplicationResponse> {

@@ -1,62 +1,117 @@
 import { z } from 'zod';
-import { APPLICATION_STATUSES, APPLICATION_TYPES } from '../db/schema.js';
+import { APPLICATION_STATUSES, LEGAL_FORMS } from '../db/schema.js';
 import {
   type FileUpload,
   isNonEmptyFile,
-  MAX_ATTACHMENT_BYTES,
-  MAX_OTHER_ATTACHMENTS,
+  MAX_DECLARED_ARTISTS,
+  MAX_FILE_BYTES,
+  MAX_OTHER_DOCUMENTS,
 } from './partner-applications.js';
 
-const Text = z.string().trim().min(1);
+/** Length in Unicode characters of an already trimmed, NFC-normalised string. */
+const characters = (value: string): number => [...value].length;
 
-export const PlannedArtistSchema = z
-  .strictObject({ name: Text.meta({ description: 'Tên nghệ sĩ dự kiến', example: 'Nguyễn Văn A' }) })
-  .meta({ id: 'PlannedArtist' });
+/** Exactly one @, a dot after it, no whitespace (FD-EMAIL). Matching is case-insensitive, so the value is kept as typed. */
+const EMAIL_SHAPE = /^[^@\s]*@[^@\s]*\.[^@\s]*$/;
+
+/** Exactly 10 or 13 digits, no hyphen, no space (FD-TAX-CODE). */
+const TAX_CODE_SHAPE = /^(?:[0-9]{10}|[0-9]{13})$/;
+
+/**
+ * Text input of the ticket: surrounding whitespace is dropped, the rest is Unicode NFC, and the length is counted in
+ * characters between `min` and `max`. `shape` adds a format rule.
+ */
+function text(min: number, max: number, shape?: { pattern: RegExp; format: string }) {
+  return z
+    .string()
+    .transform((value) => value.trim().normalize('NFC'))
+    .pipe(
+      z.string().check((ctx) => {
+        const length = characters(ctx.value);
+        if (length < min) {
+          ctx.issues.push({ code: 'too_small', origin: 'string', minimum: min, inclusive: true, input: ctx.value });
+        } else if (length > max) {
+          ctx.issues.push({ code: 'too_big', origin: 'string', maximum: max, inclusive: true, input: ctx.value });
+        } else if (shape && !shape.pattern.test(ctx.value)) {
+          ctx.issues.push({ code: 'invalid_format', format: shape.format, input: ctx.value });
+        }
+      }),
+    )
+    .meta({ minLength: min, maxLength: max });
+}
+
+const personName = () => text(1, 255);
+
+/** Check: at most `max` items. Zod's own max check also measures strings, so a non-array would report two errors. */
+const atMostItems =
+  (max: number) =>
+  (ctx: { value: unknown[]; issues: z.core.$ZodRawIssue[] }): void => {
+    if (Array.isArray(ctx.value) && ctx.value.length > max) {
+      ctx.issues.push({ code: 'too_big', origin: 'array', maximum: max, inclusive: true, input: ctx.value });
+    }
+  };
 
 export const OrganizationApplicationCreateSchema = z
   .strictObject({
-    contactName: Text.meta({ description: 'Họ tên người nộp đơn (người liên hệ)' }),
-    contactEmail: z
-      .preprocess((value) => (typeof value === 'string' ? value.trim() : value), z.email())
-      .meta({ description: 'Email liên hệ của người nộp đơn' }),
-    legalName: Text.meta({ description: 'Tên pháp nhân' }),
-    taxId: Text.meta({ description: 'Mã số thuế của pháp nhân' }),
-    sellOnly: z
-      .boolean()
-      .default(false)
-      .meta({ description: 'Chọn "chỉ bán hàng": không cần khai báo nghệ sĩ dự kiến' }),
-    plannedArtists: z
-      .array(PlannedArtistSchema)
-      .default([])
-      .meta({ description: 'Nghệ sĩ dự kiến. Bắt buộc ít nhất một nghệ sĩ khi sellOnly là false.' }),
-    businessRegistrationAttachmentId: z.uuid().meta({
-      description: 'Id file giấy đăng ký kinh doanh, lấy từ POST /api/partner-applications/attachments',
+    legalForm: z.literal(LEGAL_FORMS[0]).meta({
+      description:
+        'Hình thức nộp đơn. Endpoint này chỉ nhận đơn "tổ chức"; "cá nhân" thuộc use case khác nên bị từ chối ở trường này.',
     }),
-    otherAttachmentIds: z
+    applicantName: personName().meta({ description: 'Họ tên người nộp đơn, 1–255 ký tự, không chỉ gồm khoảng trắng' }),
+    contactEmail: text(1, 254, { pattern: EMAIL_SHAPE, format: 'email' }).meta({
+      format: 'email',
+      description:
+        'Email liên hệ, tối đa 254 ký tự: đúng một dấu @, phần sau @ có dấu chấm, không có khoảng trắng; so khớp không phân biệt hoa thường',
+    }),
+    legalName: text(1, 255).meta({ description: 'Tên pháp nhân, 1–255 ký tự, không chỉ gồm khoảng trắng' }),
+    taxCode: text(1, 13, { pattern: TAX_CODE_SHAPE, format: 'regex' }).meta({
+      minLength: 10,
+      pattern: '^([0-9]{10}|[0-9]{13})$',
+      description: 'Mã số thuế: đúng 10 hoặc 13 chữ số, không gạch nối, không dấu cách',
+    }),
+    businessRegistration: z.uuid().meta({
+      description:
+        'Giấy đăng ký kinh doanh: id của đúng một file (pdf, jpg, png; tối đa 10 MB), lấy từ POST /api/partner-applications/attachments',
+    }),
+    otherDocuments: z
       .array(z.uuid())
-      .max(MAX_OTHER_ATTACHMENTS)
+      .check(atMostItems(MAX_OTHER_DOCUMENTS))
       .default([])
       .meta({
-        description: `Id các file hồ sơ khác (tùy chọn), tối đa ${MAX_OTHER_ATTACHMENTS}: cả đơn tối đa ${MAX_OTHER_ATTACHMENTS + 1} file, tính cả giấy đăng ký kinh doanh. Mỗi file chỉ dùng một lần trong đơn.`,
+        description: `Hồ sơ khác (tùy chọn): id của tối đa ${MAX_OTHER_DOCUMENTS} file (pdf, jpg, png; tối đa 10 MB mỗi file). Cả đơn tối đa ${MAX_OTHER_DOCUMENTS + 1} file, mỗi file chỉ dùng một lần.`,
+      }),
+    salesOnly: z
+      .boolean()
+      .default(false)
+      .meta({ description: 'Chọn "chỉ bán hàng": không cần khai báo nghệ sĩ dự kiến. Mặc định false.' }),
+    declaredArtists: z
+      .array(personName())
+      .check(atMostItems(MAX_DECLARED_ARTISTS))
+      .default([])
+      .meta({
+        description: `Tên nghệ sĩ dự kiến, ${MAX_DECLARED_ARTISTS} mục tối đa, mỗi tên 1–255 ký tự. Bắt buộc ít nhất một khi salesOnly là false.`,
       }),
   })
   .check((ctx) => {
-    const { sellOnly, plannedArtists, businessRegistrationAttachmentId, otherAttachmentIds } = ctx.value;
-    if (!sellOnly && plannedArtists.length === 0) {
+    const { salesOnly, declaredArtists, businessRegistration, otherDocuments } = ctx.value;
+    if (!salesOnly && declaredArtists.length === 0) {
       ctx.issues.push({
-        code: 'custom',
-        input: plannedArtists,
-        path: ['plannedArtists'],
-        message: 'At least one planned artist is required unless sellOnly is true',
+        code: 'too_small',
+        origin: 'array',
+        minimum: 1,
+        inclusive: true,
+        input: declaredArtists,
+        path: ['declaredArtists'],
+        message: 'At least one declared artist is required unless salesOnly is true',
       });
     }
-    const ids = [businessRegistrationAttachmentId, ...otherAttachmentIds].map((id) => id.toLowerCase());
+    const ids = [businessRegistration, ...otherDocuments].map((id) => id.toLowerCase());
     if (new Set(ids).size !== ids.length) {
       ctx.issues.push({
         code: 'custom',
-        input: otherAttachmentIds,
-        path: ['otherAttachmentIds'],
-        message: 'Each attachment can be used once in an application',
+        input: otherDocuments,
+        path: ['otherDocuments'],
+        message: 'Each file can be used once in an application',
       });
     }
   })
@@ -73,7 +128,11 @@ export const AttachmentUploadFormSchema = z
     file: z
       .unknown()
       .refine((value): value is FileUpload => isNonEmptyFile(value), 'A non-empty file is required')
-      .meta({ type: 'string', format: 'binary', description: `File to upload, at most ${MAX_ATTACHMENT_BYTES} bytes` }),
+      .meta({
+        type: 'string',
+        format: 'binary',
+        description: `File pdf, jpg hoặc png, tối đa ${MAX_FILE_BYTES} byte (10 MB)`,
+      }),
   })
   .meta({ id: 'AttachmentUploadRequest' });
 
@@ -83,27 +142,28 @@ export const AttachmentSchema = z
   .object({
     id: z.uuid(),
     fileName: z.string().meta({ description: 'Tên file gốc' }),
-    contentType: z.string().meta({ description: 'MIME type do client gửi lên' }),
+    contentType: z
+      .string()
+      .meta({ description: 'Loại file nhận ra từ nội dung: application/pdf, image/jpeg hoặc image/png' }),
     sizeBytes: z.int().min(0),
   })
   .meta({ id: 'Attachment' });
 
 export type AttachmentResponse = z.infer<typeof AttachmentSchema>;
 
+/** The application as its submitter sees it. Files are visible to admins and the account bound to the application only. */
 export const PartnerApplicationSchema = z
   .object({
     id: z.uuid(),
-    type: z.enum(APPLICATION_TYPES),
-    status: z.enum(APPLICATION_STATUSES),
+    legalForm: z.enum(LEGAL_FORMS),
+    status: z.literal(APPLICATION_STATUSES[0]),
     submittedAt: z.iso.datetime(),
-    contactName: z.string(),
+    applicantName: z.string(),
     contactEmail: z.string(),
     legalName: z.string(),
-    taxId: z.string(),
-    sellOnly: z.boolean(),
-    plannedArtists: z.array(PlannedArtistSchema),
-    businessRegistration: AttachmentSchema,
-    otherAttachments: z.array(AttachmentSchema),
+    taxCode: z.string(),
+    salesOnly: z.boolean(),
+    declaredArtists: z.array(z.string()),
   })
   .meta({ id: 'PartnerApplication' });
 

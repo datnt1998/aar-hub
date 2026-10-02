@@ -1,5 +1,5 @@
 {
-  "id": "ed1a6f62-40a7-4629-b49a-d6261ceb0016",
+  "id": "cc90f2f3-90d2-4035-8999-ba3a8cf557cd",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -341,8 +341,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "type": {
-          "name": "type",
+        "legal_form": {
+          "name": "legal_form",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -353,14 +353,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "applicant_account_id": {
-          "name": "applicant_account_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "contact_name": {
-          "name": "contact_name",
+        "applicant_name": {
+          "name": "applicant_name",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -377,21 +371,21 @@
           "primaryKey": false,
           "notNull": true
         },
-        "tax_id": {
-          "name": "tax_id",
+        "tax_code": {
+          "name": "tax_code",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "sell_only": {
-          "name": "sell_only",
+        "sales_only": {
+          "name": "sales_only",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
           "default": false
         },
-        "planned_artists": {
-          "name": "planned_artists",
+        "declared_artists": {
+          "name": "declared_artists",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true
@@ -405,11 +399,11 @@
         }
       },
       "indexes": {
-        "partner_applications_tax_id_idx": {
-          "name": "partner_applications_tax_id_idx",
+        "partner_applications_tax_code_idx": {
+          "name": "partner_applications_tax_code_idx",
           "columns": [
             {
-              "expression": "tax_id",
+              "expression": "tax_code",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -421,21 +415,7 @@
           "with": {}
         }
       },
-      "foreignKeys": {
-        "partner_applications_applicant_account_id_accounts_id_fk": {
-          "name": "partner_applications_applicant_account_id_accounts_id_fk",
-          "tableFrom": "partner_applications",
-          "tableTo": "accounts",
-          "columnsFrom": [
-            "applicant_account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -459,8 +439,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "tax_id": {
-          "name": "tax_id",
+        "tax_code": {
+          "name": "tax_code",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -480,11 +460,11 @@
         }
       },
       "indexes": {
-        "partners_tax_id_idx": {
-          "name": "partners_tax_id_idx",
+        "partners_tax_code_idx": {
+          "name": "partners_tax_code_idx",
           "columns": [
             {
-              "expression": "tax_id",
+              "expression": "tax_code",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

@@ -12,7 +12,6 @@ import {
 import type {
   AdminContact,
   Attachment,
-  FileUpload,
   InAppNotification,
   OutgoingEmail,
   StoredApplication,
@@ -29,6 +28,12 @@ const attachmentColumns = {
   sizeBytes: attachments.sizeBytes,
 };
 
+export interface NewFile {
+  fileName: string;
+  contentType: string;
+  content: Buffer;
+}
+
 @Injectable()
 export class PartnerApplicationsRepository {
   constructor(@Inject(DB) private readonly db: AppDb) {}
@@ -37,14 +42,14 @@ export class PartnerApplicationsRepository {
     return this.db.transaction(work);
   }
 
-  async insertAttachment(file: FileUpload, fileName: string, now: Date): Promise<Attachment> {
+  async insertAttachment(file: NewFile, now: Date): Promise<Attachment> {
     const [row] = await this.db
       .insert(attachments)
       .values({
-        fileName,
-        contentType: file.mimetype,
-        sizeBytes: file.size,
-        content: file.buffer,
+        fileName: file.fileName,
+        contentType: file.contentType,
+        sizeBytes: file.content.length,
+        content: file.content,
         createdAt: now,
       })
       .returning(attachmentColumns);
@@ -54,51 +59,45 @@ export class PartnerApplicationsRepository {
     return row;
   }
 
-  async insertApplication(
-    tx: Tx,
-    input: OrganizationApplicationCreate,
-    applicantAccountId: string | undefined,
-    now: Date,
-  ): Promise<StoredApplication> {
+  async insertApplication(tx: Tx, input: OrganizationApplicationCreate, now: Date): Promise<StoredApplication> {
     const [row] = await tx
       .insert(partnerApplications)
       .values({
-        type: 'ORGANIZATION',
+        legalForm: input.legalForm,
         status: 'SUBMITTED',
-        applicantAccountId: applicantAccountId ?? null,
-        contactName: input.contactName,
+        applicantName: input.applicantName,
         contactEmail: input.contactEmail,
         legalName: input.legalName,
-        taxId: input.taxId,
-        sellOnly: input.sellOnly,
-        plannedArtists: input.plannedArtists,
+        taxCode: input.taxCode,
+        salesOnly: input.salesOnly,
+        declaredArtists: input.declaredArtists,
         submittedAt: now,
       })
       .returning({
         id: partnerApplications.id,
-        type: partnerApplications.type,
-        status: partnerApplications.status,
+        legalForm: partnerApplications.legalForm,
         submittedAt: partnerApplications.submittedAt,
-        contactName: partnerApplications.contactName,
+        applicantName: partnerApplications.applicantName,
         contactEmail: partnerApplications.contactEmail,
         legalName: partnerApplications.legalName,
-        taxId: partnerApplications.taxId,
-        sellOnly: partnerApplications.sellOnly,
-        plannedArtists: partnerApplications.plannedArtists,
+        taxCode: partnerApplications.taxCode,
+        salesOnly: partnerApplications.salesOnly,
+        declaredArtists: partnerApplications.declaredArtists,
       });
     if (!row) {
       throw new Error('insert into partner_applications returned no row');
     }
-    return row;
+    return { ...row, status: 'SUBMITTED' };
   }
 
-  /** Attaches the given uploads to the application. Uploads that do not exist or are attached already are skipped. */
-  attachUploads(tx: Tx, applicationId: string, ids: string[], kind: AttachmentKind): Promise<Attachment[]> {
-    return tx
+  /** Attaches the given uploads to the application and returns how many were attached. Uploads that do not exist or are attached already are skipped. */
+  async attachUploads(tx: Tx, applicationId: string, ids: string[], kind: AttachmentKind): Promise<number> {
+    const rows = await tx
       .update(attachments)
       .set({ applicationId, kind })
       .where(and(inArray(attachments.id, ids), isNull(attachments.applicationId)))
-      .returning(attachmentColumns);
+      .returning({ id: attachments.id });
+    return rows.length;
   }
 
   findPlatformAdmins(tx: Tx): Promise<AdminContact[]> {

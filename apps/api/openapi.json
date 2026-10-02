@@ -34,7 +34,7 @@
     },
     "/api/partner-applications/attachments": {
       "post": {
-        "description": "Bước trước khi nộp đơn. Dùng id trả về trong businessRegistrationAttachmentId / otherAttachmentIds. Không cần tài khoản. File tối đa 10485760 byte.",
+        "description": "Bước trước khi nộp đơn. Dùng id trả về trong businessRegistration / otherDocuments. Không cần tài khoản. File pdf, jpg hoặc png, tối đa 10485760 byte (10 MB); loại khác trả lỗi PARTNER_APPLICATION_FILE_TYPE_NOT_ALLOWED.",
         "operationId": "PartnerApplications_uploadAttachment",
         "parameters": [],
         "requestBody": {
@@ -86,6 +86,34 @@
               }
             }
           },
+          "422": {
+            "description": "PARTNER_APPLICATION_FILE_TYPE_NOT_ALLOWED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "code"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "PARTNER_APPLICATION_FILE_TYPE_NOT_ALLOWED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error (Problem Details)",
             "content": {
@@ -105,7 +133,7 @@
     },
     "/api/partner-applications/organization": {
       "post": {
-        "description": "Không cần tài khoản. Thành công: đơn ở SUBMITTED; email xác nhận gửi tới email liên hệ trong đơn; thông báo trong AarHub chỉ gửi tới tài khoản gắn với đơn (đơn gắn tài khoản khi có đăng nhập, chưa nối vào API); mọi admin nền tảng nhận email và thông báo trong AarHub. Trùng mã số thuế với đối tác hoặc đơn đang mở vẫn được nhận và không có cảnh báo nào trong phản hồi. Lỗi: không có đơn nào được tạo.",
+        "description": "Không cần tài khoản. Thành công: đơn ở SUBMITTED; email xác nhận gửi tới email liên hệ trong đơn, người nộp đơn không nhận thông báo trong AarHub; mọi admin nền tảng nhận email và thông báo trong AarHub. Trùng mã số thuế với đối tác hoặc đơn đang mở vẫn được nhận và phản hồi không có cảnh báo nào. Lỗi: không có đơn nào được tạo.",
         "operationId": "PartnerApplications_submitOrganization",
         "parameters": [],
         "requestBody": {
@@ -130,7 +158,7 @@
             }
           },
           "422": {
-            "description": "PARTNER_APPLICATION_BUSINESS_REGISTRATION_INVALID, PARTNER_APPLICATION_OTHER_ATTACHMENT_INVALID",
+            "description": "PARTNER_APPLICATION_BUSINESS_REGISTRATION_INVALID, PARTNER_APPLICATION_OTHER_DOCUMENTS_INVALID",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -148,7 +176,7 @@
                           "type": "string",
                           "enum": [
                             "PARTNER_APPLICATION_BUSINESS_REGISTRATION_INVALID",
-                            "PARTNER_APPLICATION_OTHER_ATTACHMENT_INVALID"
+                            "PARTNER_APPLICATION_OTHER_DOCUMENTS_INVALID"
                           ]
                         }
                       }
@@ -215,7 +243,7 @@
           "file": {
             "type": "string",
             "format": "binary",
-            "description": "File to upload, at most 10485760 bytes"
+            "description": "File pdf, jpg hoặc png, tối đa 10485760 byte (10 MB)"
           }
         },
         "required": [
@@ -237,7 +265,7 @@
           },
           "contentType": {
             "type": "string",
-            "description": "MIME type do client gửi lên"
+            "description": "Loại file nhận ra từ nội dung: application/pdf, image/jpeg hoặc image/png"
           },
           "sizeBytes": {
             "type": "integer",
@@ -256,79 +284,77 @@
       "OrganizationApplicationCreateRequest": {
         "type": "object",
         "properties": {
-          "contactName": {
+          "legalForm": {
             "type": "string",
+            "enum": [
+              "tổ chức"
+            ],
+            "description": "Hình thức nộp đơn. Endpoint này chỉ nhận đơn \"tổ chức\"; \"cá nhân\" thuộc use case khác nên bị từ chối ở trường này."
+          },
+          "applicantName": {
             "minLength": 1,
-            "description": "Họ tên người nộp đơn (người liên hệ)"
+            "maxLength": 255,
+            "description": "Họ tên người nộp đơn, 1–255 ký tự, không chỉ gồm khoảng trắng",
+            "type": "string"
           },
           "contactEmail": {
-            "description": "Email liên hệ của người nộp đơn",
-            "type": "string",
+            "minLength": 1,
+            "maxLength": 254,
             "format": "email",
-            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+            "description": "Email liên hệ, tối đa 254 ký tự: đúng một dấu @, phần sau @ có dấu chấm, không có khoảng trắng; so khớp không phân biệt hoa thường",
+            "type": "string"
           },
           "legalName": {
-            "type": "string",
             "minLength": 1,
-            "description": "Tên pháp nhân"
+            "maxLength": 255,
+            "description": "Tên pháp nhân, 1–255 ký tự, không chỉ gồm khoảng trắng",
+            "type": "string"
           },
-          "taxId": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Mã số thuế của pháp nhân"
+          "taxCode": {
+            "minLength": 10,
+            "maxLength": 13,
+            "pattern": "^([0-9]{10}|[0-9]{13})$",
+            "description": "Mã số thuế: đúng 10 hoặc 13 chữ số, không gạch nối, không dấu cách",
+            "type": "string"
           },
-          "sellOnly": {
-            "default": false,
-            "description": "Chọn \"chỉ bán hàng\": không cần khai báo nghệ sĩ dự kiến",
-            "type": "boolean"
-          },
-          "plannedArtists": {
-            "default": [],
-            "description": "Nghệ sĩ dự kiến. Bắt buộc ít nhất một nghệ sĩ khi sellOnly là false.",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PlannedArtist"
-            }
-          },
-          "businessRegistrationAttachmentId": {
+          "businessRegistration": {
             "type": "string",
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "description": "Id file giấy đăng ký kinh doanh, lấy từ POST /api/partner-applications/attachments"
+            "description": "Giấy đăng ký kinh doanh: id của đúng một file (pdf, jpg, png; tối đa 10 MB), lấy từ POST /api/partner-applications/attachments"
           },
-          "otherAttachmentIds": {
+          "otherDocuments": {
             "default": [],
-            "description": "Id các file hồ sơ khác (tùy chọn), tối đa 2: cả đơn tối đa 3 file, tính cả giấy đăng ký kinh doanh. Mỗi file chỉ dùng một lần trong đơn.",
-            "maxItems": 2,
+            "description": "Hồ sơ khác (tùy chọn): id của tối đa 2 file (pdf, jpg, png; tối đa 10 MB mỗi file). Cả đơn tối đa 3 file, mỗi file chỉ dùng một lần.",
             "type": "array",
             "items": {
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             }
+          },
+          "salesOnly": {
+            "default": false,
+            "description": "Chọn \"chỉ bán hàng\": không cần khai báo nghệ sĩ dự kiến. Mặc định false.",
+            "type": "boolean"
+          },
+          "declaredArtists": {
+            "description": "Tên nghệ sĩ dự kiến, 20 mục tối đa, mỗi tên 1–255 ký tự. Bắt buộc ít nhất một khi salesOnly là false.",
+            "type": "array",
+            "items": {
+              "minLength": 1,
+              "maxLength": 255,
+              "type": "string"
+            }
           }
         },
         "required": [
-          "contactName",
+          "legalForm",
+          "applicantName",
           "contactEmail",
           "legalName",
-          "taxId",
-          "businessRegistrationAttachmentId"
-        ],
-        "additionalProperties": false
-      },
-      "PlannedArtist": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Tên nghệ sĩ dự kiến",
-            "example": "Nguyễn Văn A"
-          }
-        },
-        "required": [
-          "name"
+          "taxCode",
+          "businessRegistration"
         ],
         "additionalProperties": false
       },
@@ -340,10 +366,11 @@
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
-          "type": {
+          "legalForm": {
             "type": "string",
             "enum": [
-              "ORGANIZATION"
+              "tổ chức",
+              "cá nhân"
             ]
           },
           "status": {
@@ -357,7 +384,7 @@
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
           },
-          "contactName": {
+          "applicantName": {
             "type": "string"
           },
           "contactEmail": {
@@ -366,41 +393,30 @@
           "legalName": {
             "type": "string"
           },
-          "taxId": {
+          "taxCode": {
             "type": "string"
           },
-          "sellOnly": {
+          "salesOnly": {
             "type": "boolean"
           },
-          "plannedArtists": {
+          "declaredArtists": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/PlannedArtist"
-            }
-          },
-          "businessRegistration": {
-            "$ref": "#/components/schemas/Attachment"
-          },
-          "otherAttachments": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Attachment"
+              "type": "string"
             }
           }
         },
         "required": [
           "id",
-          "type",
+          "legalForm",
           "status",
           "submittedAt",
-          "contactName",
+          "applicantName",
           "contactEmail",
           "legalName",
-          "taxId",
-          "sellOnly",
-          "plannedArtists",
-          "businessRegistration",
-          "otherAttachments"
+          "taxCode",
+          "salesOnly",
+          "declaredArtists"
         ],
         "additionalProperties": false
       },
