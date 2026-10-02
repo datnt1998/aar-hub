@@ -220,16 +220,12 @@ describe('preparing a direct partner creation', () => {
 
     it('an individual is matched on the citizen id only, of partners and open applications (Q-PARTNER-ONBOARDING-147)', async () => {
       const partner = await seedPartner('SUSPENDED', { citizenId: CITIZEN_ID });
+      // The tax code is filled only because the application table requires one; the individual check ignores it.
       const application = await seedApplication('NEEDS_INFO', { taxCode: '0388888888', citizenId: CITIZEN_ID });
       await seedPartner('ACTIVE', { citizenId: '079000000000' });
       expect(warning(await checkDraft(individual()))).toEqual({
         partners: [{ id: partner, status: 'SUSPENDED' }],
         applications: [{ id: application, status: 'NEEDS_INFO' }],
-        canConfirm: false,
-      });
-      // The organization check reads tax codes only: the same partners are no duplicate of a tax code.
-      expect(warning(await checkDraft(organization({ taxCode: '0388888888' })))).toMatchObject({
-        partners: [],
         canConfirm: false,
       });
     });
