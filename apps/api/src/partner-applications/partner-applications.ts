@@ -4,21 +4,37 @@ import type { AttachmentKind, LegalForm, NotificationKind } from '../db/schema.j
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 /**
- * Files per input. One business registration and up to two other documents: at most three files per application
- * (BR-PARTNER-ONBOARDING-037), so a submission with more than three files always breaks one of these limits.
+ * Files per input. One main document (business registration or citizen ID image) and up to two other documents: at
+ * most three files per application (BR-PARTNER-ONBOARDING-037), so a submission with more than three files always
+ * breaks one of these limits.
  */
-export const MAX_FILES = { businessRegistration: 1, otherDocuments: 2 } as const;
+export const MAX_FILES = { businessRegistration: 1, citizenIdImage: 1, otherDocuments: 2 } as const;
 export type FileInput = keyof typeof MAX_FILES;
+
+/** Most files one application carries: its main document and the other documents. */
+export const MAX_FILES_PER_APPLICATION = 1 + MAX_FILES.otherDocuments;
+
+/** The file inputs of each legal form (BR-PARTNER-ONBOARDING-018). */
+export const FILE_INPUTS = {
+  'tổ chức': ['businessRegistration', 'otherDocuments'],
+  'cá nhân': ['citizenIdImage', 'otherDocuments'],
+} as const satisfies Record<LegalForm, readonly FileInput[]>;
 
 export const MAX_DECLARED_ARTISTS = 20;
 
-/** Notification content, from the ticket (AC-PARTNER-ONBOARDING-01-09 and -10). Used as email subject/body and in-app message. */
-export const MESSAGE_RECEIVED = 'Đơn tổ chức đã được nhận';
-export const MESSAGE_NEW_FOR_ADMIN = 'Có đơn tổ chức mới cần nhận';
+/**
+ * Notification content per legal form, from the tickets (AC-PARTNER-ONBOARDING-01-09/-10 and -14-02/-03). Used as email
+ * subject/body and in-app message.
+ */
+export const MESSAGES: Record<LegalForm, { received: string; newForAdmin: string }> = {
+  'tổ chức': { received: 'Đơn tổ chức đã được nhận', newForAdmin: 'Có đơn tổ chức mới cần nhận' },
+  'cá nhân': { received: 'Đơn cá nhân đã được nhận', newForAdmin: 'Có đơn cá nhân mới cần nhận' },
+};
 
 /**
  * A file of the submission as the upload storage hands it over. `size` is the real size; `buffer` holds the whole
- * content only when the file can be accepted (see attachment-storage.ts), otherwise just enough to check it.
+ * content only when the route stores files and the file can be accepted (see attachment-storage.ts), otherwise just
+ * enough to check it.
  */
 export interface FileUpload {
   originalname: string;
@@ -58,7 +74,7 @@ export function detectFileType(content: Uint8Array): string | undefined {
   return FILE_TYPES.find((type) => type.signature.every((byte, index) => content[index] === byte))?.contentType;
 }
 
-/** A file that passed the type and size checks, ready to scan and store. */
+/** A file that passed the type and size checks. `content` is whole only on a route that stores files. */
 export interface AcceptedFile {
   fileName: string;
   contentType: string;
@@ -70,19 +86,14 @@ export interface ApplicationFile extends AcceptedFile {
   kind: AttachmentKind;
 }
 
-export interface StoredApplication {
-  id: string;
-  legalForm: LegalForm;
-  /** A newly stored application is always SUBMITTED. */
-  status: 'SUBMITTED';
-  submittedAt: Date;
+/** What the applicant typed, after validation. The legal form decides which identifier the application carries. */
+export type NewApplication = {
   applicantName: string;
   contactEmail: string;
   legalName: string;
-  taxCode: string;
   salesOnly: boolean;
   declaredArtists: string[];
-}
+} & ({ legalForm: 'tổ chức'; taxCode: string } | { legalForm: 'cá nhân'; citizenId: string });
 
 export interface AdminContact {
   id: string;
@@ -108,22 +119,24 @@ export interface OutgoingEmail {
  * - Every platform admin gets an email and an in-app notification.
  */
 export function planNotifications(
+  legalForm: LegalForm,
   contactEmail: string,
   admins: AdminContact[],
 ): { inApp: InAppNotification[]; emails: OutgoingEmail[] } {
+  const { received, newForAdmin } = MESSAGES[legalForm];
   return {
     inApp: admins.map((admin) => ({
       accountId: admin.id,
       kind: 'APPLICATION_NEW_FOR_ADMIN' as const,
-      message: MESSAGE_NEW_FOR_ADMIN,
+      message: newForAdmin,
     })),
     emails: [
-      { toEmail: contactEmail, kind: 'APPLICATION_RECEIVED', subject: MESSAGE_RECEIVED, body: MESSAGE_RECEIVED },
+      { toEmail: contactEmail, kind: 'APPLICATION_RECEIVED', subject: received, body: received },
       ...admins.map((admin) => ({
         toEmail: admin.email,
         kind: 'APPLICATION_NEW_FOR_ADMIN' as const,
-        subject: MESSAGE_NEW_FOR_ADMIN,
-        body: MESSAGE_NEW_FOR_ADMIN,
+        subject: newForAdmin,
+        body: newForAdmin,
       })),
     ],
   };

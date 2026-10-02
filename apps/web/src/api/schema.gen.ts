@@ -40,6 +40,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/partner-applications/individual": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Nộp đơn đăng ký đối tác hình thức cá nhân, kèm ảnh CCCD và hồ sơ khác
+         * @description Không cần tài khoản. Một lần gửi multipart/form-data gồm thông tin đơn và các tệp; không có bước tải tệp lên trước. Hệ thống kiểm số tệp, định dạng (theo nội dung) và dung lượng của mọi tệp cùng mọi trường khác, báo mọi chỗ sai trong một lần (400 VALIDATION_FAILED); tệp hợp lệ chỉ được kiểm, không được quét mã độc và không được lưu (quét và lưu tệp của đơn cá nhân thuộc ticket đính kèm tệp vào đơn cá nhân, UC-PARTNER-ONBOARDING-25). Thành công: đơn ở SUBMITTED; email xác nhận gửi tới email liên hệ trong đơn, người nộp đơn không nhận thông báo trong AarHub; mọi admin nền tảng nhận email và thông báo trong AarHub. Trùng số CCCD với đối tác hoặc đơn đang mở vẫn được nhận và phản hồi không có cảnh báo nào. Lỗi: không có đơn nào được tạo và không tệp nào được lưu. Quá 10 tệp hoặc 100 trường chữ: 400 BAD_REQUEST.
+         */
+        post: operations["PartnerApplications_submitIndividual"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -55,7 +75,7 @@ export interface components {
         };
         OrganizationApplicationCreateRequest: {
             /**
-             * @description Hình thức nộp đơn. Endpoint này chỉ nhận đơn "tổ chức"; "cá nhân" thuộc use case khác nên bị từ chối ở trường này.
+             * @description Hình thức nộp đơn. Endpoint này chỉ nhận đơn "tổ chức"; đơn "cá nhân" nộp qua POST /api/partner-applications/individual.
              * @enum {string}
              */
             legalForm: "tổ chức";
@@ -96,6 +116,52 @@ export interface components {
             contactEmail: string;
             legalName: string;
             taxCode: string;
+            salesOnly: boolean;
+            declaredArtists: string[];
+        };
+        IndividualApplicationCreateRequest: {
+            /**
+             * @description Hình thức nộp đơn. Endpoint này chỉ nhận đơn "cá nhân"; đơn "tổ chức" nộp qua POST /api/partner-applications.
+             * @enum {string}
+             */
+            legalForm: "cá nhân";
+            /** @description Họ tên người nộp đơn, 1–255 ký tự, không chỉ gồm khoảng trắng */
+            applicantName: string;
+            /**
+             * Format: email
+             * @description Email liên hệ, tối đa 254 ký tự. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu. Đúng một dấu @, có ít nhất một ký tự trước @, phần sau @ có dấu chấm nhưng không bắt đầu và không kết thúc bằng dấu chấm, không có khoảng trắng; so khớp không phân biệt hoa thường
+             */
+            contactEmail: string;
+            /** @description Họ tên pháp nhân cá nhân, 1–255 ký tự, không chỉ gồm khoảng trắng */
+            legalName: string;
+            /** @description Số CCCD: đúng 12 chữ số, chỉ gồm chữ số. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu. Trùng với đối tác hay đơn đang mở vẫn được nhận; cảnh báo trùng chỉ dành cho admin. Bỏ trống: invalid_type; rỗng hoặc dưới 12 ký tự: too_small; quá 12 ký tự: too_big; đủ 12 ký tự nhưng có ký tự khác chữ số: invalid_format */
+            citizenId: string;
+            /** @description Ảnh CCCD: đúng 1 tệp, gửi cùng đơn. pdf, jpg hoặc png nhận theo nội dung tệp, không theo đuôi tên; mỗi tệp tối đa 10485760 byte (10 MB). Cả đơn tối đa 3 tệp. Tệp sai định dạng: invalid_format tại /body/<trường>/<thứ tự>; tệp quá lớn: too_big tại /body/<trường>/<thứ tự>; quá số tệp: too_big tại /body/<trường>. Bỏ trống: invalid_type; danh sách rỗng: too_small */
+            citizenIdImage: string[];
+            /** @description Hồ sơ khác (tùy chọn): tối đa 2 tệp, mỗi tệp một phần form cùng tên otherDocuments, gửi cùng đơn. pdf, jpg hoặc png nhận theo nội dung tệp, không theo đuôi tên; mỗi tệp tối đa 10485760 byte (10 MB). Cả đơn tối đa 3 tệp. Tệp sai định dạng: invalid_format tại /body/<trường>/<thứ tự>; tệp quá lớn: too_big tại /body/<trường>/<thứ tự>; quá số tệp: too_big tại /body/<trường> */
+            otherDocuments?: string[];
+            /**
+             * @description Chọn "chỉ bán hàng" ("true"/"false"): không cần khai báo nghệ sĩ dự kiến. Mặc định "false".
+             * @default false
+             * @enum {string}
+             */
+            salesOnly: "true" | "false";
+            /** @description Tên nghệ sĩ dự kiến, mỗi tên một phần form cùng tên declaredArtists; 20 mục tối đa, mỗi tên 1–255 ký tự. Bắt buộc ít nhất một khi salesOnly là false. */
+            declaredArtists?: string[];
+        };
+        IndividualPartnerApplication: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            legalForm: "cá nhân";
+            /** @enum {string} */
+            status: "SUBMITTED";
+            /** Format: date-time */
+            submittedAt: string;
+            applicantName: string;
+            contactEmail: string;
+            legalName: string;
+            citizenId: string;
             salesOnly: boolean;
             declaredArtists: string[];
         };
@@ -213,6 +279,38 @@ export interface operations {
                         /** @enum {string} */
                         code: "PARTNER_APPLICATION_FILE_SCAN_UNAVAILABLE";
                     };
+                };
+            };
+            /** @description Error (Problem Details) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    PartnerApplications_submitIndividual: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["IndividualApplicationCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndividualPartnerApplication"];
                 };
             };
             /** @description Error (Problem Details) */

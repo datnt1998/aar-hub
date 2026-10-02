@@ -6,10 +6,9 @@ import type {
   AdminContact,
   ApplicationFile,
   InAppNotification,
+  NewApplication,
   OutgoingEmail,
-  StoredApplication,
 } from './partner-applications.js';
-import type { OrganizationApplicationCreate } from './partner-applications.schemas.js';
 
 /** Handle of one open database transaction, passed between the repository calls of a use case. */
 export type Tx = Parameters<Parameters<AppDb['transaction']>[0]>[0];
@@ -38,7 +37,8 @@ export class PartnerApplicationsRepository {
     }
   }
 
-  async insertApplication(tx: Tx, input: OrganizationApplicationCreate, now: Date): Promise<StoredApplication> {
+  /** Stores a new application in SUBMITTED; returns what the database assigned. */
+  async insertApplication(tx: Tx, input: NewApplication, now: Date): Promise<{ id: string; submittedAt: Date }> {
     const [row] = await tx
       .insert(partnerApplications)
       .values({
@@ -47,26 +47,17 @@ export class PartnerApplicationsRepository {
         applicantName: input.applicantName,
         contactEmail: input.contactEmail,
         legalName: input.legalName,
-        taxCode: input.taxCode,
+        taxCode: input.legalForm === 'tổ chức' ? input.taxCode : null,
+        citizenId: input.legalForm === 'cá nhân' ? input.citizenId : null,
         salesOnly: input.salesOnly,
         declaredArtists: input.declaredArtists,
         submittedAt: now,
       })
-      .returning({
-        id: partnerApplications.id,
-        legalForm: partnerApplications.legalForm,
-        submittedAt: partnerApplications.submittedAt,
-        applicantName: partnerApplications.applicantName,
-        contactEmail: partnerApplications.contactEmail,
-        legalName: partnerApplications.legalName,
-        taxCode: partnerApplications.taxCode,
-        salesOnly: partnerApplications.salesOnly,
-        declaredArtists: partnerApplications.declaredArtists,
-      });
+      .returning({ id: partnerApplications.id, submittedAt: partnerApplications.submittedAt });
     if (!row) {
       throw new Error('insert into partner_applications returned no row');
     }
-    return { ...row, status: 'SUBMITTED' };
+    return row;
   }
 
   findPlatformAdmins(tx: Tx): Promise<AdminContact[]> {

@@ -130,6 +130,49 @@
           "partner-applications"
         ]
       }
+    },
+    "/api/partner-applications/individual": {
+      "post": {
+        "description": "Không cần tài khoản. Một lần gửi multipart/form-data gồm thông tin đơn và các tệp; không có bước tải tệp lên trước. Hệ thống kiểm số tệp, định dạng (theo nội dung) và dung lượng của mọi tệp cùng mọi trường khác, báo mọi chỗ sai trong một lần (400 VALIDATION_FAILED); tệp hợp lệ chỉ được kiểm, không được quét mã độc và không được lưu (quét và lưu tệp của đơn cá nhân thuộc ticket đính kèm tệp vào đơn cá nhân, UC-PARTNER-ONBOARDING-25). Thành công: đơn ở SUBMITTED; email xác nhận gửi tới email liên hệ trong đơn, người nộp đơn không nhận thông báo trong AarHub; mọi admin nền tảng nhận email và thông báo trong AarHub. Trùng số CCCD với đối tác hoặc đơn đang mở vẫn được nhận và phản hồi không có cảnh báo nào. Lỗi: không có đơn nào được tạo và không tệp nào được lưu. Quá 10 tệp hoặc 100 trường chữ: 400 BAD_REQUEST.",
+        "operationId": "PartnerApplications_submitIndividual",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/IndividualApplicationCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndividualPartnerApplication"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error (Problem Details)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Nộp đơn đăng ký đối tác hình thức cá nhân, kèm ảnh CCCD và hồ sơ khác",
+        "tags": [
+          "partner-applications"
+        ]
+      }
     }
   },
   "info": {
@@ -173,7 +216,7 @@
             "enum": [
               "tổ chức"
             ],
-            "description": "Hình thức nộp đơn. Endpoint này chỉ nhận đơn \"tổ chức\"; \"cá nhân\" thuộc use case khác nên bị từ chối ở trường này."
+            "description": "Hình thức nộp đơn. Endpoint này chỉ nhận đơn \"tổ chức\"; đơn \"cá nhân\" nộp qua POST /api/partner-applications/individual."
           },
           "applicantName": {
             "minLength": 1,
@@ -207,6 +250,7 @@
               "type": "string",
               "format": "binary"
             },
+            "maxItems": 1,
             "minItems": 1,
             "description": "Giấy đăng ký kinh doanh: đúng 1 tệp, gửi cùng đơn. pdf, jpg hoặc png nhận theo nội dung tệp, không theo đuôi tên; mỗi tệp tối đa 10485760 byte (10 MB). Cả đơn tối đa 3 tệp. Tệp sai định dạng: invalid_format tại /body/<trường>/<thứ tự>; tệp quá lớn: too_big tại /body/<trường>/<thứ tự>; quá số tệp: too_big tại /body/<trường>. Bỏ trống: invalid_type; danh sách rỗng: too_small"
           },
@@ -216,7 +260,8 @@
             "items": {
               "type": "string",
               "format": "binary"
-            }
+            },
+            "maxItems": 2
           },
           "salesOnly": {
             "description": "Chọn \"chỉ bán hàng\" (\"true\"/\"false\"): không cần khai báo nghệ sĩ dự kiến. Mặc định \"false\".",
@@ -234,6 +279,7 @@
               "minLength": 1,
               "maxLength": 255
             },
+            "maxItems": 20,
             "description": "Tên nghệ sĩ dự kiến, mỗi tên một phần form cùng tên declaredArtists; 20 mục tối đa, mỗi tên 1–255 ký tự. Bắt buộc ít nhất một khi salesOnly là false."
           }
         },
@@ -304,6 +350,152 @@
           "contactEmail",
           "legalName",
           "taxCode",
+          "salesOnly",
+          "declaredArtists"
+        ],
+        "additionalProperties": false
+      },
+      "IndividualApplicationCreateRequest": {
+        "type": "object",
+        "properties": {
+          "legalForm": {
+            "type": "string",
+            "enum": [
+              "cá nhân"
+            ],
+            "description": "Hình thức nộp đơn. Endpoint này chỉ nhận đơn \"cá nhân\"; đơn \"tổ chức\" nộp qua POST /api/partner-applications."
+          },
+          "applicantName": {
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Họ tên người nộp đơn, 1–255 ký tự, không chỉ gồm khoảng trắng",
+            "type": "string"
+          },
+          "contactEmail": {
+            "minLength": 1,
+            "maxLength": 254,
+            "format": "email",
+            "description": "Email liên hệ, tối đa 254 ký tự. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu. Đúng một dấu @, có ít nhất một ký tự trước @, phần sau @ có dấu chấm nhưng không bắt đầu và không kết thúc bằng dấu chấm, không có khoảng trắng; so khớp không phân biệt hoa thường",
+            "type": "string"
+          },
+          "legalName": {
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Họ tên pháp nhân cá nhân, 1–255 ký tự, không chỉ gồm khoảng trắng",
+            "type": "string"
+          },
+          "citizenId": {
+            "minLength": 12,
+            "maxLength": 12,
+            "pattern": "^[0-9]{12}$",
+            "description": "Số CCCD: đúng 12 chữ số, chỉ gồm chữ số. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu. Trùng với đối tác hay đơn đang mở vẫn được nhận; cảnh báo trùng chỉ dành cho admin. Bỏ trống: invalid_type; rỗng hoặc dưới 12 ký tự: too_small; quá 12 ký tự: too_big; đủ 12 ký tự nhưng có ký tự khác chữ số: invalid_format",
+            "type": "string"
+          },
+          "citizenIdImage": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "binary"
+            },
+            "maxItems": 1,
+            "minItems": 1,
+            "description": "Ảnh CCCD: đúng 1 tệp, gửi cùng đơn. pdf, jpg hoặc png nhận theo nội dung tệp, không theo đuôi tên; mỗi tệp tối đa 10485760 byte (10 MB). Cả đơn tối đa 3 tệp. Tệp sai định dạng: invalid_format tại /body/<trường>/<thứ tự>; tệp quá lớn: too_big tại /body/<trường>/<thứ tự>; quá số tệp: too_big tại /body/<trường>. Bỏ trống: invalid_type; danh sách rỗng: too_small"
+          },
+          "otherDocuments": {
+            "description": "Hồ sơ khác (tùy chọn): tối đa 2 tệp, mỗi tệp một phần form cùng tên otherDocuments, gửi cùng đơn. pdf, jpg hoặc png nhận theo nội dung tệp, không theo đuôi tên; mỗi tệp tối đa 10485760 byte (10 MB). Cả đơn tối đa 3 tệp. Tệp sai định dạng: invalid_format tại /body/<trường>/<thứ tự>; tệp quá lớn: too_big tại /body/<trường>/<thứ tự>; quá số tệp: too_big tại /body/<trường>",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "binary"
+            },
+            "maxItems": 2
+          },
+          "salesOnly": {
+            "description": "Chọn \"chỉ bán hàng\" (\"true\"/\"false\"): không cần khai báo nghệ sĩ dự kiến. Mặc định \"false\".",
+            "default": "false",
+            "type": "string",
+            "enum": [
+              "true",
+              "false"
+            ]
+          },
+          "declaredArtists": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            },
+            "maxItems": 20,
+            "description": "Tên nghệ sĩ dự kiến, mỗi tên một phần form cùng tên declaredArtists; 20 mục tối đa, mỗi tên 1–255 ký tự. Bắt buộc ít nhất một khi salesOnly là false."
+          }
+        },
+        "required": [
+          "legalForm",
+          "applicantName",
+          "contactEmail",
+          "legalName",
+          "citizenId",
+          "citizenIdImage"
+        ],
+        "additionalProperties": false
+      },
+      "IndividualPartnerApplication": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "legalForm": {
+            "type": "string",
+            "enum": [
+              "cá nhân"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "SUBMITTED"
+            ]
+          },
+          "submittedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "applicantName": {
+            "type": "string"
+          },
+          "contactEmail": {
+            "type": "string"
+          },
+          "legalName": {
+            "type": "string"
+          },
+          "citizenId": {
+            "type": "string"
+          },
+          "salesOnly": {
+            "type": "boolean"
+          },
+          "declaredArtists": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "legalForm",
+          "status",
+          "submittedAt",
+          "applicantName",
+          "contactEmail",
+          "legalName",
+          "citizenId",
           "salesOnly",
           "declaredArtists"
         ],
