@@ -9,6 +9,10 @@ import {
   AttachmentSchema,
   AttachmentUploadFormSchema,
   type AttachmentResponse,
+  type IndividualApplicationCreate,
+  IndividualApplicationCreateSchema,
+  IndividualPartnerApplicationSchema,
+  type IndividualPartnerApplicationResponse,
   type OrganizationApplicationCreate,
   OrganizationApplicationCreateSchema,
   PartnerApplicationSchema,
@@ -25,7 +29,7 @@ export class PartnerApplicationsController {
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_FILE_BYTES } }), FileToBodyInterceptor)
   @ApiOperation({
     summary: 'Tải lên một file đính kèm',
-    description: `Bước trước khi nộp đơn. Dùng id trả về trong businessRegistration / otherDocuments. Không cần tài khoản. File pdf, jpg hoặc png, tối đa ${MAX_FILE_BYTES} byte (10 MB); loại khác trả lỗi PARTNER_APPLICATION_FILE_TYPE_NOT_ALLOWED.`,
+    description: `Bước trước khi nộp đơn. Dùng id trả về trong businessRegistration / citizenIdImage / otherDocuments. Không cần tài khoản. File pdf, jpg hoặc png, tối đa ${MAX_FILE_BYTES} byte (10 MB); loại khác trả lỗi PARTNER_APPLICATION_FILE_TYPE_NOT_ALLOWED.`,
   })
   @ApiConsumes('multipart/form-data')
   @Returns(HttpStatus.CREATED, AttachmentSchema)
@@ -50,5 +54,20 @@ export class PartnerApplicationsController {
     @Body({ schema: OrganizationApplicationCreateSchema }) body: OrganizationApplicationCreate,
   ): Promise<PartnerApplicationResponse> {
     return this.applications.submitOrganization(body);
+  }
+
+  @Post('individual')
+  @ApiOperation({
+    summary: 'Nộp đơn đăng ký đối tác hình thức cá nhân',
+    description:
+      'Không cần tài khoản. Thành công: đơn ở SUBMITTED; email xác nhận gửi tới email liên hệ trong đơn, người nộp đơn không nhận thông báo trong AarHub; mọi admin nền tảng nhận email và thông báo trong AarHub. ' +
+      'Trùng số CCCD với đối tác hoặc đơn đang mở vẫn được nhận và phản hồi không có cảnh báo nào. Lỗi: không có đơn nào được tạo.',
+  })
+  @Returns(HttpStatus.CREATED, IndividualPartnerApplicationSchema)
+  @ApiProblem(422, 'PARTNER_APPLICATION_CITIZEN_ID_IMAGE_INVALID', 'PARTNER_APPLICATION_OTHER_DOCUMENTS_INVALID')
+  submitIndividual(
+    @Body({ schema: IndividualApplicationCreateSchema }) body: IndividualApplicationCreate,
+  ): Promise<IndividualPartnerApplicationResponse> {
+    return this.applications.submitIndividual(body);
   }
 }

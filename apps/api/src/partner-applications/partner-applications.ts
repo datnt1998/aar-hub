@@ -1,16 +1,21 @@
-import type { LegalForm, NotificationKind } from '../db/schema.js';
+import type { AttachmentKind, LegalForm, NotificationKind } from '../db/schema.js';
 
-/** Largest accepted file: 10 MB, where 1 MB = 1 048 576 bytes (businessRegistration and otherDocuments). */
+/** Largest accepted file: 10 MB, where 1 MB = 1 048 576 bytes (businessRegistration, citizenIdImage and otherDocuments). */
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
-/** businessRegistration takes one file, otherDocuments up to two: three files per application. */
+/** The main document (businessRegistration or citizenIdImage) takes one file, otherDocuments up to two: three files per application. */
 export const MAX_OTHER_DOCUMENTS = 2;
 
 export const MAX_DECLARED_ARTISTS = 20;
 
-/** Notification content, from the ticket (AC-PARTNER-ONBOARDING-01-09 and -10). Used as email subject/body and in-app message. */
-export const MESSAGE_RECEIVED = 'Đơn tổ chức đã được nhận';
-export const MESSAGE_NEW_FOR_ADMIN = 'Có đơn tổ chức mới cần nhận';
+/**
+ * Notification content per legal form, from the tickets (AC-PARTNER-ONBOARDING-01-09/-10 and -14-02/-03). Used as email
+ * subject/body and in-app message.
+ */
+export const MESSAGES: Record<LegalForm, { received: string; newForAdmin: string }> = {
+  'tổ chức': { received: 'Đơn tổ chức đã được nhận', newForAdmin: 'Có đơn tổ chức mới cần nhận' },
+  'cá nhân': { received: 'Đơn cá nhân đã được nhận', newForAdmin: 'Có đơn cá nhân mới cần nhận' },
+};
 
 /** A file as Multer hands it over. */
 export interface FileUpload {
@@ -67,18 +72,20 @@ export interface Attachment {
   sizeBytes: number;
 }
 
-export interface StoredApplication {
-  id: string;
-  legalForm: LegalForm;
-  /** A newly stored application is always SUBMITTED. */
-  status: 'SUBMITTED';
-  submittedAt: Date;
+/** What the applicant typed, after validation. The legal form decides which identifier the application carries. */
+export type NewApplication = {
   applicantName: string;
   contactEmail: string;
   legalName: string;
-  taxCode: string;
   salesOnly: boolean;
   declaredArtists: string[];
+} & ({ legalForm: 'tổ chức'; taxCode: string } | { legalForm: 'cá nhân'; citizenId: string });
+
+/** Files sent with an application: one main document of `kind` and up to two other documents (attachment ids). */
+export interface ApplicationFiles {
+  main: string;
+  kind: Exclude<AttachmentKind, 'OTHER'>;
+  otherDocuments: string[];
 }
 
 export interface AdminContact {
@@ -105,22 +112,24 @@ export interface OutgoingEmail {
  * - Every platform admin gets an email and an in-app notification.
  */
 export function planNotifications(
+  legalForm: LegalForm,
   contactEmail: string,
   admins: AdminContact[],
 ): { inApp: InAppNotification[]; emails: OutgoingEmail[] } {
+  const { received, newForAdmin } = MESSAGES[legalForm];
   return {
     inApp: admins.map((admin) => ({
       accountId: admin.id,
       kind: 'APPLICATION_NEW_FOR_ADMIN' as const,
-      message: MESSAGE_NEW_FOR_ADMIN,
+      message: newForAdmin,
     })),
     emails: [
-      { toEmail: contactEmail, kind: 'APPLICATION_RECEIVED', subject: MESSAGE_RECEIVED, body: MESSAGE_RECEIVED },
+      { toEmail: contactEmail, kind: 'APPLICATION_RECEIVED', subject: received, body: received },
       ...admins.map((admin) => ({
         toEmail: admin.email,
         kind: 'APPLICATION_NEW_FOR_ADMIN' as const,
-        subject: MESSAGE_NEW_FOR_ADMIN,
-        body: MESSAGE_NEW_FOR_ADMIN,
+        subject: newForAdmin,
+        body: newForAdmin,
       })),
     ],
   };

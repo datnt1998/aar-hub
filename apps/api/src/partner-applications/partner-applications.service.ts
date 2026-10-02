@@ -2,13 +2,22 @@ import { Injectable } from '@nestjs/common';
 import { Clock } from '../common/time/clock.js';
 import {
   BusinessRegistrationInvalidError,
+  CitizenIdImageInvalidError,
   FileTypeNotAllowedError,
   OtherDocumentsInvalidError,
 } from './partner-applications.errors.js';
-import { allowedContentType, type FileUpload, planNotifications } from './partner-applications.js';
+import {
+  allowedContentType,
+  type ApplicationFiles,
+  type FileUpload,
+  type NewApplication,
+  planNotifications,
+} from './partner-applications.js';
 import { PartnerApplicationsRepository } from './partner-applications.repository.js';
 import type {
   AttachmentResponse,
+  IndividualApplicationCreate,
+  IndividualPartnerApplicationResponse,
   OrganizationApplicationCreate,
   PartnerApplicationResponse,
 } from './partner-applications.schemas.js';
@@ -31,38 +40,49 @@ export class PartnerApplicationsService {
     return this.repository.insertAttachment({ fileName, contentType, content: file.buffer }, this.clock.now());
   }
 
-  /**
-   * Creates an organization application in SUBMITTED, or creates nothing. Duplicate tax codes are accepted silently.
-   * The confirmation email goes to the contact email in the application; the applicant gets no in-app notification.
-   */
+  /** Creates an organization application in SUBMITTED, or creates nothing. Duplicate tax codes are accepted silently. */
   submitOrganization(input: OrganizationApplicationCreate): Promise<PartnerApplicationResponse> {
+    const { businessRegistration, otherDocuments, ...application } = input;
+    return this.submit(application, { main: businessRegistration, kind: 'BUSINESS_REGISTRATION', otherDocuments });
+  }
+
+  /** Creates an individual application in SUBMITTED, or creates nothing. Duplicate citizen IDs are accepted silently. */
+  submitIndividual(input: IndividualApplicationCreate): Promise<IndividualPartnerApplicationResponse> {
+    const { citizenIdImage, otherDocuments, ...application } = input;
+    return this.submit(application, { main: citizenIdImage, kind: 'CITIZEN_ID_IMAGE', otherDocuments });
+  }
+
+  /**
+   * Stores the application in SUBMITTED with its files and queues its notifications in one transaction: a file that
+   * cannot be attached rolls everything back. The confirmation email goes to the contact email in the application;
+   * the applicant gets no in-app notification. Every platform admin gets an email and an in-app notification.
+   */
+  private submit<T extends NewApplication>(
+    application: T,
+    files: ApplicationFiles,
+  ): Promise<T & { id: string; status: 'SUBMITTED'; submittedAt: string }> {
     const now = this.clock.now();
     return this.repository.transaction(async (tx) => {
-      const application = await this.repository.insertApplication(tx, input, now);
+      const { id, submittedAt } = await this.repository.insertApplication(tx, application, now);
 
-      const attachedRegistration = await this.repository.attachUploads(
-        tx,
-        application.id,
-        [input.businessRegistration],
-        'BUSINESS_REGISTRATION',
-      );
-      if (attachedRegistration !== 1) {
-        throw new BusinessRegistrationInvalidError();
+      if ((await this.repository.attachUploads(tx, id, [files.main], files.kind)) !== 1) {
+        throw files.kind === 'CITIZEN_ID_IMAGE'
+          ? new CitizenIdImageInvalidError()
+          : new BusinessRegistrationInvalidError();
       }
-
-      if (input.otherDocuments.length > 0) {
-        const attachedOthers = await this.repository.attachUploads(tx, application.id, input.otherDocuments, 'OTHER');
-        if (attachedOthers !== input.otherDocuments.length) {
+      if (files.otherDocuments.length > 0) {
+        const attachedOthers = await this.repository.attachUploads(tx, id, files.otherDocuments, 'OTHER');
+        if (attachedOthers !== files.otherDocuments.length) {
           throw new OtherDocumentsInvalidError();
         }
       }
 
       const admins = await this.repository.findPlatformAdmins(tx);
-      const { inApp, emails } = planNotifications(input.contactEmail, admins);
-      await this.repository.insertNotifications(tx, application.id, inApp, now);
-      await this.repository.insertEmails(tx, application.id, emails, now);
+      const { inApp, emails } = planNotifications(application.legalForm, application.contactEmail, admins);
+      await this.repository.insertNotifications(tx, id, inApp, now);
+      await this.repository.insertEmails(tx, id, emails, now);
 
-      return { ...application, submittedAt: application.submittedAt.toISOString() };
+      return { ...application, id, status: 'SUBMITTED' as const, submittedAt: submittedAt.toISOString() };
     });
   }
 }

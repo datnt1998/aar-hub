@@ -18,6 +18,15 @@ export class BusinessRegistrationInvalidError extends DomainError {
   }
 }
 
+export class CitizenIdImageInvalidError extends DomainError {
+  readonly code = 'PARTNER_APPLICATION_CITIZEN_ID_IMAGE_INVALID';
+  readonly kind = 'unprocessable';
+
+  constructor() {
+    super('The citizen ID image file does not exist or is already attached to an application');
+  }
+}
+
 export class OtherDocumentsInvalidError extends DomainError {
   readonly code = 'PARTNER_APPLICATION_OTHER_DOCUMENTS_INVALID';
   readonly kind = 'unprocessable';
