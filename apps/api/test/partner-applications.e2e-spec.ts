@@ -470,6 +470,10 @@ describe('partner applications (organization)', () => {
         expect(await refused('taxCode', bad), bad).toBe('invalid_format');
       }
       await refused('taxCode', 312345678);
+      // Surrounding whitespace is dropped before the check and is not stored.
+      expect((await accepted('taxCode', ' 0312345678 ')).taxCode).toBe('0312345678');
+      expect((await accepted('taxCode', '0312345678123\t')).taxCode).toBe('0312345678123');
+      await refused('taxCode', ' ');
     });
 
     it('salesOnly is a boolean that defaults to false', async () => {

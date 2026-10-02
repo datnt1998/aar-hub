@@ -65,13 +65,14 @@ export const OrganizationApplicationCreateSchema = z
     contactEmail: text(1, 254, { pattern: EMAIL_SHAPE, format: 'email' }).meta({
       format: 'email',
       description:
-        'Email liên hệ, tối đa 254 ký tự: đúng một dấu @, có ít nhất một ký tự trước @, phần sau @ có dấu chấm nhưng không bắt đầu và không kết thúc bằng dấu chấm, không có khoảng trắng; so khớp không phân biệt hoa thường',
+        'Email liên hệ, tối đa 254 ký tự. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu. Đúng một dấu @, có ít nhất một ký tự trước @, phần sau @ có dấu chấm nhưng không bắt đầu và không kết thúc bằng dấu chấm, không có khoảng trắng; so khớp không phân biệt hoa thường',
     }),
     legalName: text(1, 255).meta({ description: 'Tên pháp nhân, 1–255 ký tự, không chỉ gồm khoảng trắng' }),
     taxCode: text(1, 13, { pattern: TAX_CODE_SHAPE, format: 'regex' }).meta({
       minLength: 10,
       pattern: '^([0-9]{10}|[0-9]{13})$',
-      description: 'Mã số thuế: đúng 10 hoặc 13 chữ số, không gạch nối, không dấu cách',
+      description:
+        'Mã số thuế: đúng 10 hoặc 13 chữ số, không gạch nối, không dấu cách ở giữa. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu',
     }),
     businessRegistration: z.uuid().meta({
       description:

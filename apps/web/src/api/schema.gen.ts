@@ -99,12 +99,12 @@ export interface components {
             applicantName: string;
             /**
              * Format: email
-             * @description Email liên hệ, tối đa 254 ký tự: đúng một dấu @, có ít nhất một ký tự trước @, phần sau @ có dấu chấm nhưng không bắt đầu và không kết thúc bằng dấu chấm, không có khoảng trắng; so khớp không phân biệt hoa thường
+             * @description Email liên hệ, tối đa 254 ký tự. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu. Đúng một dấu @, có ít nhất một ký tự trước @, phần sau @ có dấu chấm nhưng không bắt đầu và không kết thúc bằng dấu chấm, không có khoảng trắng; so khớp không phân biệt hoa thường
              */
             contactEmail: string;
             /** @description Tên pháp nhân, 1–255 ký tự, không chỉ gồm khoảng trắng */
             legalName: string;
-            /** @description Mã số thuế: đúng 10 hoặc 13 chữ số, không gạch nối, không dấu cách */
+            /** @description Mã số thuế: đúng 10 hoặc 13 chữ số, không gạch nối, không dấu cách ở giữa. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu */
             taxCode: string;
             /**
              * Format: uuid
