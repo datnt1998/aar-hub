@@ -11,4 +11,4 @@ Bộ luật, quy trình code, contract với Ops và quyết định kỹ thuậ
 
 API đang chạy: `GET /api/health` trả `200`, `status: "ok"` và `uptimeSeconds` là số giây tiến trình đã chạy (không âm); `GET /health` trả `404`. Interface: [`apps/api/openapi.json`](apps/api/openapi.json).
 
-Dữ liệu lưu ở PostgreSQL qua Drizzle (`DATABASE_URL`; xem [ADR 0003](.devkit/decisions/0003-postgres-drizzle.md)). Nộp đơn đối tác tổ chức: tải file bằng `POST /api/partner-applications/attachments`, rồi `POST /api/partner-applications/organization`.
+Dữ liệu lưu ở PostgreSQL qua Drizzle (`DATABASE_URL`; xem [ADR 0003](.devkit/decisions/0003-postgres-drizzle.md)). Nộp đơn đối tác tổ chức: tải file bằng `POST /api/partner-applications/attachments`, rồi `POST /api/partner-applications`.

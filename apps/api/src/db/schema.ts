@@ -24,9 +24,6 @@ export type LegalForm = (typeof LEGAL_FORMS)[number];
 export const APPLICATION_STATUSES = ['SUBMITTED', 'UNDER_REVIEW', 'NEEDS_INFO'] as const;
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 
-export const PARTNER_STATUSES = ['PENDING_ACTIVATION', 'ACTIVE', 'TERMINATED'] as const;
-export type PartnerStatus = (typeof PARTNER_STATUSES)[number];
-
 export const ATTACHMENT_KINDS = ['BUSINESS_REGISTRATION', 'OTHER'] as const;
 export type AttachmentKind = (typeof ATTACHMENT_KINDS)[number];
 
@@ -36,7 +33,8 @@ export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 /**
  * AarHub account. Platform admin accounts belong to the shared login ticket (Q-PARTNER-ONBOARDING-144), not to BE-01.
  * This table is only the stand-in BE-01 reads so admins can be notified: who exists and who is a platform admin.
- * The login ticket replaces it; only PartnerApplicationsRepository.findPlatformAdmins reads it.
+ * The login ticket replaces it and takes over the foreign key `notifications.account_id` (ADR 0006); only
+ * PartnerApplicationsRepository.findPlatformAdmins reads it.
  */
 export const accounts = pgTable(
   'accounts',
@@ -49,14 +47,18 @@ export const accounts = pgTable(
   (t) => [uniqueIndex('accounts_email_lower_idx').on(sql`lower(${t.email})`)],
 );
 
-/** Partner (ENT-PARTNER). Minimal columns for matching tax codes; nothing in the submit flow reads it (duplicates are accepted silently). */
+/**
+ * Partner (ENT-PARTNER). Owned by the partner tickets: the columns and the values of `status` are theirs to define.
+ * BE-01 never reads or writes this table (a duplicate tax code is accepted silently); it exists only so AC-01-11 can
+ * hold an existing partner in a test. `status` is free text for that reason, not a list of known states.
+ */
 export const partners = pgTable(
   'partners',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     legalName: text('legal_name').notNull(),
     taxCode: text('tax_code').notNull(),
-    status: text('status').$type<PartnerStatus>().notNull(),
+    status: text('status').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('partners_tax_code_idx').on(t.taxCode)],
