@@ -20,6 +20,6 @@ Ops (Hermes) gửi tin vào terminal Orca đang chạy agent chat của repo nà
    - `pr_opened`: branch, HEAD và PR đều thật: branch hiện tại, SHA đã push (`git rev-parse HEAD` bằng `headRefOid` của `gh pr view --json url,headRefOid`), URL working PR. Kèm thẻ `aar/1` `delivery` hợp lệ: `ac_covered` lấy từ `pnpm ac --json`; ticket BE có `handoff` ([.devkit/rules/api.md](../rules/api.md), mục tài liệu interface). Câu hỏi không chặn đi kèm dưới dạng thẻ `question`.
    - `spec_gap`: kèm thẻ `question` cho từng câu hỏi; các AC không bị chặn đã commit và push.
    - `needs_input`: `message` là **nguyên văn** lượt hỏi cần người quyết định, đúng như sẽ nói với người khi chat. Ops chuyển nguyên văn lên Telegram. Sau đó chờ trong terminal.
-   - `error`: `summary` và `error` nêu lý do (đang ở `main`, "cần chọn database", lệnh kiểm đỏ không sửa được…).
+   - `error`: `summary` và `error` nêu lý do (đang ở `main`, lệnh kiểm đỏ không sửa được…).
 6. **Lượt sau.** Ops gửi câu trả lời của người hoặc việc tiếp theo vào cùng terminal Orca. Tiếp tục trong cùng phiên như chat và ghi lại result file theo tin mới.
 7. **Review độc lập.** Review luôn chạy bằng subagent `reviewer` hoặc session riêng theo [.devkit/workflows/review.md](review.md), không dùng ngữ cảnh đã code.

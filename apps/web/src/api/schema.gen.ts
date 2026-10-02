@@ -11,7 +11,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["HealthController_check"];
+        get: operations["Health_check"];
         put?: never;
         post?: never;
         delete?: never;
@@ -24,7 +24,7 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        HealthDto: {
+        Health: {
             /**
              * @description API process is up and serving requests
              * @enum {string}
@@ -32,6 +32,40 @@ export interface components {
             status: "ok";
             /** @description Seconds since the API process started */
             uptimeSeconds: number;
+        };
+        /** @description Error response (RFC 9457 Problem Details) with a required `code` */
+        Problem: {
+            /** @description Problem type URI; `about:blank` when `code` is enough */
+            type: string;
+            /** @description HTTP reason phrase of `status` */
+            title: string;
+            /** @description HTTP status code */
+            status: number;
+            /**
+             * @description Stable machine-readable error code; clients branch and translate on this
+             * @example VALIDATION_FAILED
+             */
+            code: string;
+            /** @description English explanation for developers; never shown as UI text */
+            detail?: string;
+            /** @description Request path that produced the error */
+            instance: string;
+            /** @description Per-input errors when `code` is VALIDATION_FAILED */
+            errors?: components["schemas"]["FieldError"][];
+        };
+        FieldError: {
+            /**
+             * @description JSON Pointer (RFC 6901) to the invalid input, prefixed by its location: `/body/email`, `/query/page`, `/path/id`
+             * @example /body/email
+             */
+            pointer: string;
+            /**
+             * @description Machine-readable reason (schema issue code such as `too_small`, `invalid_format`)
+             * @example invalid_format
+             */
+            code: string;
+            /** @description English explanation for developers; clients show their own text */
+            detail: string;
         };
     };
     responses: never;
@@ -42,7 +76,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    HealthController_check: {
+    Health_check: {
         parameters: {
             query?: never;
             header?: never;
@@ -56,7 +90,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HealthDto"];
+                    "application/json": components["schemas"]["Health"];
+                };
+            };
+            /** @description Error (Problem Details) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };

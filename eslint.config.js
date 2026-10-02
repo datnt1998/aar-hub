@@ -68,6 +68,26 @@ export default defineConfig(
       ],
     },
   },
+  {
+    files: ['apps/api/src/**/*.ts'],
+    ignores: ['apps/api/src/**/*.spec.ts'],
+    rules: {
+      'no-console': 'error',
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'process',
+          property: 'env',
+          message: 'Declare the variable in src/config/env.ts and read it through ConfigService<Env, true>.',
+        },
+      ],
+    },
+  },
+  {
+    // Standalone scripts that run outside Nest and print their result.
+    files: ['apps/api/src/openapi/export.ts', 'apps/api/src/db/migrate.ts'],
+    rules: { 'no-console': 'off' },
+  },
   { files: ['**/*.{js,mjs}'], extends: [tseslint.configs.disableTypeChecked] },
   {
     files: ['apps/web/src/**/*.{ts,tsx}'],

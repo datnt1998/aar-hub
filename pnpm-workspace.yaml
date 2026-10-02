@@ -6,6 +6,9 @@ minimumReleaseAge: 1440
 strictDepBuilds: true
 verifyDepsBeforeRun: install
 
-# Postinstall telemetry pulled in by @nestjs/swagger; never needed.
+# Build scripts that never need to run:
+# - @scarf/scarf: postinstall telemetry pulled in by @nestjs/swagger.
+# - esbuild (via drizzle-kit): postinstall only verifies the platform binary that the optional dependency already ships.
 ignoredBuiltDependencies:
   - '@scarf/scarf'
+  - esbuild

@@ -12,7 +12,7 @@
 
 ## Interface
 
-<!-- Ticket BE: endpoint/DTO thêm hoặc đổi, kèm path trong apps/api/openapi.json. Không đổi: ghi "Không". -->
+<!-- Ticket BE: endpoint, schema, mã lỗi (@ApiProblem) thêm hoặc đổi, kèm path trong apps/api/openapi.json; migration nếu đổi bảng. Không đổi: ghi "Không". -->
 
 ## Quyết định và câu hỏi
 
@@ -20,6 +20,6 @@
 
 ## Đã chạy
 
-- [ ] `pnpm verify` (format:check, lint, typecheck, test, e2e, build, openapi:check)
+- [ ] `pnpm verify` (format:check, lint, typecheck, test, e2e, build, openapi:check, db:check)
 - [ ] Review độc lập (subagent `reviewer` hoặc session riêng, theo `.devkit/workflows/review.md`)
 - [ ] `.devkit/` (luật, ADR) đã cập nhật nếu đổi quy ước hoặc quyết định
