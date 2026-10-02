@@ -8,6 +8,7 @@
 
 - AC-PARTNER-ONBOARDING-01-10: mọi admin nền tảng nhận email và thông báo trong AarHub khi có đơn mới. Cần biết ai là admin và gắn thông báo trong AarHub vào một tài khoản.
 - aar-docs chốt (Q-PARTNER-ONBOARDING-144): tài khoản admin thuộc ticket đăng nhập chung, không thuộc BE-01. Repo chưa chọn auth.
+- aar-docs trả lời (Q-PARTNER-ONBOARDING-145, "Đồng ý"): trước khi có ticket đăng nhập chung, BE-01 được giữ danh sách admin tạm để báo có đơn mới. Câu trả lời này chưa phải việc chấp nhận ADR; người duyệt PR chấp nhận ở G3.
 - Không có bảng nào thì AC-01-10 không kiểm được bằng test HTTP trên database thật, và `notifications.account_id` không có chỗ để trỏ tới.
 
 ## Các lựa chọn
