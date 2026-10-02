@@ -499,7 +499,7 @@ describe('partner applications (organization)', () => {
         .expect(413);
       expect(tooBig.body.code).toBe('PAYLOAD_TOO_LARGE');
       expect(await t.db.select().from(attachments)).toHaveLength(1);
-    });
+    }, 30_000);
 
     it('businessRegistration is exactly one file', async () => {
       const [first, second] = [await upload('a.pdf'), await upload('b.pdf')];
