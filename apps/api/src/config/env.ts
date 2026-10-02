@@ -11,6 +11,11 @@ export const envSchema = z
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     /** PostgreSQL connection string. Optional outside production: connections open on first query. */
     DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }).optional(),
+    /** ClamAV daemon (clamd) that scans uploaded files, reached over TCP (ADR 0007). */
+    CLAMAV_HOST: z.string().min(1).default('127.0.0.1'),
+    CLAMAV_PORT: z.coerce.number().int().min(1).max(65535).default(3310),
+    /** How long one file scan may take before the file counts as not scanned (the applicant is told to retry). */
+    MALWARE_SCAN_TIMEOUT_MS: z.coerce.number().int().min(1).default(30_000),
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV === 'production' && !env.DATABASE_URL) {

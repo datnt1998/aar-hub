@@ -1,3 +1,5 @@
+import type { FieldError } from '../http/problem.js';
+
 /**
  * How a business rule failure maps to HTTP. Services throw DomainError subclasses and stay free of HTTP types;
  * the global ProblemFilter turns them into Problem responses.
@@ -11,13 +13,16 @@ export const DOMAIN_ERROR_STATUS = {
   conflict: 409,
   /** The input passed the schema but breaks a business rule that depends on more than its shape. */
   unprocessable: 422,
+  /** A service the rule depends on gave no answer (scanner down or too slow); the same request may pass later. */
+  unavailable: 503,
 } as const;
 
 export type DomainErrorKind = keyof typeof DOMAIN_ERROR_STATUS;
 
 /**
  * Base class of business rule failures. Subclasses fix `code` (SCREAMING_SNAKE_CASE, feature prefix) and `kind`;
- * the message is English, safe to show to the API client as `detail`.
+ * the message is English, safe to show to the API client as `detail`. `errors` names the inputs the failure is about,
+ * in the same shape as VALIDATION_FAILED, when there are any (`/body/otherDocuments/1`).
  *
  * @example
  * export class InvitationExpiredError extends DomainError {
@@ -29,6 +34,13 @@ export type DomainErrorKind = keyof typeof DOMAIN_ERROR_STATUS;
 export abstract class DomainError extends Error {
   abstract readonly code: string;
   abstract readonly kind: DomainErrorKind;
+
+  constructor(
+    message: string,
+    readonly errors?: FieldError[],
+  ) {
+    super(message);
+  }
 
   override get name(): string {
     return this.constructor.name;

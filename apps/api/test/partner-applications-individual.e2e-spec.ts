@@ -8,21 +8,34 @@ import {
   partnerApplications,
   partners,
 } from '../src/db/schema.js';
-import {
-  AttachmentSchema,
-  IndividualPartnerApplicationSchema,
-  PartnerApplicationSchema,
-} from '../src/partner-applications/partner-applications.schemas.js';
+import { MalwareScanner } from '../src/malware-scan/malware-scanner.js';
+import { IndividualPartnerApplicationSchema } from '../src/partner-applications/partner-applications.schemas.js';
 import { createTestApp, type TestApp } from './support/create-test-app.js';
+import { EICAR, type FakeClamd, startFakeClamd } from './support/fake-clamd.js';
 
 const MB = 1024 * 1024;
 const PDF = Buffer.from('%PDF-1.4 demo');
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('demo')]);
 const JPG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from('demo')]);
+const GIF = Buffer.from('GIF89a demo');
+/** A .docx is a zip archive. */
+const DOCX = Buffer.concat([
+  Buffer.from([0x50, 0x4b, 0x03, 0x04]),
+  Buffer.from('[Content_Types].xml word/document.xml'),
+]);
 const CITIZEN_ID = '079123456789';
 
-/** A jpg of exactly `size` bytes. */
-const jpgOfSize = (size: number) => Buffer.concat([JPG, Buffer.alloc(size - JPG.length, 1)]);
+/** `content` padded to exactly `size` bytes. */
+const ofSize = (content: Buffer, size: number) => Buffer.concat([content, Buffer.alloc(size - content.length, 1)]);
+
+interface Upload {
+  filename: string;
+  content: Buffer;
+}
+const file = (filename: string, content: Buffer = JPG): Upload => ({ filename, content });
+
+/** A form value: text, repeated text, a boolean sent as "true"/"false", or files. `undefined` leaves the field out. */
+type FormValue = string | string[] | boolean | number | Upload | Upload[] | undefined;
 
 /** The only row of a query that must have returned one. */
 function one<T>(rows: T[]): T {
@@ -35,40 +48,39 @@ function one<T>(rows: T[]): T {
 
 describe('partner applications (individual)', () => {
   let t: TestApp;
+  let clamd: FakeClamd;
 
   beforeAll(async () => {
-    t = await createTestApp();
+    clamd = await startFakeClamd();
+    t = await createTestApp({
+      override: (builder) =>
+        builder
+          .overrideProvider(MalwareScanner)
+          .useValue(new MalwareScanner({ host: '127.0.0.1', port: clamd.port, timeoutMs: 1000 })),
+    });
   });
   afterAll(async () => {
     await t.close();
+    await clamd.close();
   });
   beforeEach(async () => {
     await t.reset();
+    clamd.mode = 'scan';
+    clamd.scanned = [];
   });
 
-  async function upload(fileName = 'cccd.jpg', content: Buffer = JPG): Promise<string> {
-    const res = await t
-      .http()
-      .post('/api/partner-applications/attachments')
-      .attach('file', content, { filename: fileName })
-      .expect(201);
-    return AttachmentSchema.parse(res.body).id;
-  }
-
-  /** A complete individual application body; pass `undefined` to leave a field out. */
-  async function validBody(overrides: Record<string, unknown> = {}) {
-    return {
-      legalForm: 'cá nhân',
-      applicantName: 'Trần Thị Bích',
-      contactEmail: 'b@y.com',
-      legalName: 'Nguyễn Văn An',
-      citizenId: CITIZEN_ID,
-      citizenIdImage: await upload(),
-      salesOnly: false,
-      declaredArtists: ['Nghệ sĩ Một'],
-      ...overrides,
-    };
-  }
+  /** A complete individual application; pass `undefined` to leave a field out. */
+  const validForm = (overrides: Record<string, FormValue> = {}): Record<string, FormValue> => ({
+    legalForm: 'cá nhân',
+    applicantName: 'Trần Thị Bích',
+    contactEmail: 'b@y.com',
+    legalName: 'Nguyễn Văn An',
+    citizenId: CITIZEN_ID,
+    citizenIdImage: file('cccd.jpg'),
+    salesOnly: false,
+    declaredArtists: ['Nghệ sĩ Một'],
+    ...overrides,
+  });
 
   /** Awaits a response and checks its status; returns it for further assertions. */
   async function expectStatus<T extends { status: number }>(status: number, response: PromiseLike<T>): Promise<T> {
@@ -77,8 +89,20 @@ describe('partner applications (individual)', () => {
     return res;
   }
 
-  const post = (body: object) => t.http().post('/api/partner-applications/individual').send(body);
-  const submit = async (overrides: Record<string, unknown> = {}) => post(await validBody(overrides));
+  /** Sends the form as multipart/form-data, in one request with its files. */
+  const post = (form: Record<string, FormValue>) => {
+    let req = t.http().post('/api/partner-applications/individual');
+    for (const [name, value] of Object.entries(form)) {
+      for (const part of Array.isArray(value) ? value : value === undefined ? [] : [value]) {
+        req =
+          typeof part === 'object'
+            ? req.attach(name, part.content, { filename: part.filename })
+            : req.field(name, String(part));
+      }
+    }
+    return req;
+  };
+  const submit = (overrides: Record<string, FormValue> = {}) => post(validForm(overrides));
 
   /** The application in a 201 response, checked against the published response schema. */
   const created = (res: { body: unknown }) => IndividualPartnerApplicationSchema.parse(res.body);
@@ -86,30 +110,32 @@ describe('partner applications (individual)', () => {
   const storedRow = async (id: string) =>
     one(await t.db.select().from(partnerApplications).where(eq(partnerApplications.id, id)));
 
+  const filesOf = (applicationId: string) =>
+    t.db.select().from(attachments).where(eq(attachments.applicationId, applicationId));
+
   /** Everything a submission may leave behind. */
   async function state() {
     return {
       applications: await t.db.select().from(partnerApplications),
       emails: await t.db.select().from(emailOutbox),
       notifications: await t.db.select().from(notifications),
-      attachedFiles: (await t.db.select().from(attachments)).filter((file) => file.applicationId !== null),
+      files: await t.db.select().from(attachments),
     };
   }
 
-  /** The request was refused and nothing was stored, sent or attached. */
+  /** The request was refused and nothing was stored or sent: no application, no file. */
   async function expectNothingCreated() {
     const now = await state();
     expect(now.applications).toHaveLength(0);
     expect(now.emails).toHaveLength(0);
     expect(now.notifications).toHaveLength(0);
-    expect(now.attachedFiles).toHaveLength(0);
+    expect(now.files).toHaveLength(0);
   }
 
+  type Errors = { pointer: string; code: string }[];
+
   /** A 400 VALIDATION_FAILED that points at exactly these inputs (JSON pointers below `/body`); returns its errors. */
-  function expectInvalid(
-    res: { status: number; body: { code: string; errors: { pointer: string; code: string }[] } },
-    ...fields: string[]
-  ) {
+  function expectInvalid(res: { status: number; body: { code: string; errors: Errors } }, ...fields: string[]) {
     expect(res.status).toBe(400);
     expect(res.body.code).toBe('VALIDATION_FAILED');
     expect(res.body.errors.map((error) => error.pointer).sort()).toEqual(
@@ -117,6 +143,10 @@ describe('partner applications (individual)', () => {
     );
     return res.body.errors;
   }
+
+  /** Errors of a response as `pointer code` lines, sorted, for exact comparison. */
+  const errorsOf = (res: { body: { errors: Errors } }) =>
+    res.body.errors.map((error) => `${error.pointer} ${error.code}`).sort();
 
   /** The applicant's view: exactly the fields of the published response, with no duplicate warning. */
   function expectNoWarning(res: { body: object }, existingName: string) {
@@ -139,7 +169,7 @@ describe('partner applications (individual)', () => {
 
   describe('submitted status', () => {
     it('AC-PARTNER-ONBOARDING-14-01 example 1: one declared artist, no optional document, new legal entity', async () => {
-      const res = await expectStatus(201, submit({ declaredArtists: ['Nghệ sĩ Một'], otherDocuments: [] }));
+      const res = await expectStatus(201, submit({ declaredArtists: ['Nghệ sĩ Một'], otherDocuments: undefined }));
       expect(created(res)).toMatchObject({
         legalForm: 'cá nhân',
         status: 'SUBMITTED',
@@ -154,34 +184,33 @@ describe('partner applications (individual)', () => {
       const row = await storedRow(created(res).id);
       expect(row).toMatchObject({ status: 'SUBMITTED', legalForm: 'cá nhân', citizenId: CITIZEN_ID, taxCode: null });
       expect(await t.db.select().from(partnerApplications)).toHaveLength(1);
-      const files = await t.db
-        .select()
-        .from(attachments)
-        .where(eq(attachments.applicationId, created(res).id));
-      expect(files.map((file) => file.kind)).toEqual(['CITIZEN_ID_IMAGE']);
+      expect((await filesOf(created(res).id)).map((stored) => `${stored.kind} ${stored.fileName}`)).toEqual([
+        'CITIZEN_ID_IMAGE cccd.jpg',
+      ]);
     });
 
     it('AC-PARTNER-ONBOARDING-14-01 example 2: two declared artists, one optional document, new legal entity', async () => {
-      const other = await upload('ho-so.pdf', PDF);
       const res = await expectStatus(
         201,
-        submit({ declaredArtists: ['Nghệ sĩ Một', 'Nghệ sĩ Hai'], otherDocuments: [other] }),
+        submit({ declaredArtists: ['Nghệ sĩ Một', 'Nghệ sĩ Hai'], otherDocuments: [file('ho-so.pdf', PDF)] }),
       );
       expect(created(res)).toMatchObject({ status: 'SUBMITTED', declaredArtists: ['Nghệ sĩ Một', 'Nghệ sĩ Hai'] });
       expect((await storedRow(created(res).id)).status).toBe('SUBMITTED');
-      const files = await t.db
-        .select()
-        .from(attachments)
-        .where(eq(attachments.applicationId, created(res).id));
-      expect(files.map((file) => file.kind).sort()).toEqual(['CITIZEN_ID_IMAGE', 'OTHER']);
-      expect(files.find((file) => file.kind === 'OTHER')?.id).toBe(other);
+      const stored = await filesOf(created(res).id);
+      expect(stored.map((row) => `${row.kind} ${row.fileName}`).sort()).toEqual([
+        'CITIZEN_ID_IMAGE cccd.jpg',
+        'OTHER ho-so.pdf',
+      ]);
     });
 
     it('AC-PARTNER-ONBOARDING-14-01 example 3: sales only without artists, citizen ID shared with an ACTIVE partner', async () => {
       await t.db
         .insert(partners)
         .values({ legalName: 'Đối tác đang hoạt động', citizenId: CITIZEN_ID, status: 'ACTIVE' });
-      const res = await expectStatus(201, submit({ salesOnly: true, declaredArtists: undefined, otherDocuments: [] }));
+      const res = await expectStatus(
+        201,
+        submit({ salesOnly: true, declaredArtists: undefined, otherDocuments: undefined }),
+      );
       expect(created(res)).toMatchObject({
         status: 'SUBMITTED',
         salesOnly: true,
@@ -194,7 +223,7 @@ describe('partner applications (individual)', () => {
   });
 
   describe('required information', () => {
-    const missing = (field: string, value?: unknown) =>
+    const missing = (field: string, value?: FormValue) =>
       submit({ salesOnly: true, declaredArtists: undefined, [field]: value });
 
     /**
@@ -220,10 +249,9 @@ describe('partner applications (individual)', () => {
     });
 
     it('AC-PARTNER-ONBOARDING-14-08 example 3: missing citizen ID image is refused and nothing is created', async () => {
-      const spareUpload = await upload('khong-dung.jpg');
-      await expectNotEntered('citizenIdImage', 'invalid_format');
-      const file = one(await t.db.select().from(attachments).where(eq(attachments.id, spareUpload)));
-      expect(file.applicationId).toBeNull();
+      // No file part, or an empty text field in its place: both are "no file".
+      await expectNotEntered('citizenIdImage', 'invalid_type');
+      expect(clamd.scanned).toHaveLength(0);
     });
 
     it('AC-PARTNER-ONBOARDING-14-08 example 4: missing applicant name is refused and nothing is created', async () => {
@@ -245,6 +273,7 @@ describe('partner applications (individual)', () => {
       expectInvalid(res, 'declaredArtists');
       expect(res.body.errors[0]?.code).toBe('too_small');
       await expectNothingCreated();
+      expect(clamd.scanned).toHaveLength(0);
     });
 
     it('AC-PARTNER-ONBOARDING-14-07 not sales only with an empty artist list, or sales only left out, is refused the same way', async () => {
@@ -255,11 +284,27 @@ describe('partner applications (individual)', () => {
       await expectNothingCreated();
     });
 
-    it('a request without an object body is refused with 400, not a server error', async () => {
+    it('a missing artist list, a wrong file and another wrong input are reported together', async () => {
+      const res = await submit({
+        applicantName: undefined,
+        declaredArtists: undefined,
+        citizenIdImage: file('cccd.gif', GIF),
+      });
+      expect(errorsOf(res)).toEqual(
+        [
+          '/body/applicantName invalid_type',
+          '/body/citizenIdImage/0 invalid_format',
+          '/body/declaredArtists too_small',
+        ].sort(),
+      );
+      await expectNothingCreated();
+    });
+
+    it('a request without a form body is refused with 400, not a server error', async () => {
       const none = await t.http().post('/api/partner-applications/individual');
       expect(none.status).toBe(400);
       expect(none.body).toMatchObject({ code: 'VALIDATION_FAILED' });
-      for (const body of [null, 'text', [1], 5]) {
+      for (const body of [null, 'text', [1], 5, { applicantName: 'JSON' }]) {
         const res = await t
           .http()
           .post('/api/partner-applications/individual')
@@ -328,6 +373,9 @@ describe('partner applications (individual)', () => {
       await t.db.insert(accounts).values({ email: 'admin@aar.vn', isPlatformAdmin: true });
       await expectStatus(400, submit({ citizenId: undefined }));
       await expectNothingCreated();
+      clamd.mode = 'error';
+      await expectStatus(503, submit());
+      await expectNothingCreated();
     });
   });
 
@@ -356,14 +404,14 @@ describe('partner applications (individual)', () => {
 
   describe('input limits', () => {
     /** Posts one input value and expects the application to be accepted; returns it. */
-    async function accepted(field: string, value: unknown, others: Record<string, unknown> = {}) {
+    async function accepted(field: string, value: FormValue, others: Record<string, FormValue> = {}) {
       const res = await submit({ [field]: value, ...others });
       expect(res.status, `${field} = ${JSON.stringify(value)?.slice(0, 40)} should be accepted`).toBe(201);
       return created(res);
     }
 
     /** Posts one input value and expects a 400 on exactly that input; returns the first error code. */
-    async function refused(field: string, value: unknown, pointer = field, others: Record<string, unknown> = {}) {
+    async function refused(field: string, value: FormValue, pointer = field, others: Record<string, FormValue> = {}) {
       const res = await submit({ [field]: value, ...others });
       expect(res.status, `${field} = ${JSON.stringify(value)?.slice(0, 40)} should be refused`).toBe(400);
       return expectInvalid(res, pointer)[0]?.code;
@@ -374,6 +422,7 @@ describe('partner applications (individual)', () => {
       await refused('legalForm', undefined);
       await refused('legalForm', 'tổ chức');
       await refused('legalForm', 'INDIVIDUAL');
+      await refused('legalForm', ['cá nhân', 'cá nhân']);
     });
 
     it('legalName is 1 to 255 characters, not only spaces, counted in Unicode NFC after trimming', async () => {
@@ -382,7 +431,6 @@ describe('partner applications (individual)', () => {
       expect(await refused('legalName', 'a'.repeat(256))).toBe('too_big');
       expect(await refused('legalName', '')).toBe('too_small');
       expect(await refused('legalName', '   \t ')).toBe('too_small');
-      await refused('legalName', 42);
       expect((await accepted('legalName', 'e\u0301'.repeat(255))).legalName).toBe('\u00e9'.repeat(255));
       await refused('legalName', 'e\u0301'.repeat(256));
       await accepted('legalName', '😀'.repeat(255));
@@ -400,7 +448,6 @@ describe('partner applications (individual)', () => {
       for (const bad of ['07912345678A', '079-12345678', '079 12345678', '０７９１２３４５６７８９', '٠٧٩١٢٣٤٥٦٧٨٩']) {
         expect(await refused('citizenId', bad), bad).toBe('invalid_format');
       }
-      await refused('citizenId', 79123456789);
       // Surrounding whitespace is dropped before the check and is not stored.
       const trimmed = await accepted('citizenId', ` ${CITIZEN_ID}\t`);
       expect(trimmed.citizenId).toBe(CITIZEN_ID);
@@ -431,12 +478,13 @@ describe('partner applications (individual)', () => {
       expect((await accepted('contactEmail', ' B@Y.COM ')).contactEmail).toBe('B@Y.COM');
     });
 
-    it('salesOnly is a boolean that defaults to false', async () => {
+    it('salesOnly is "true" or "false" and defaults to false', async () => {
       expect((await accepted('salesOnly', true, { declaredArtists: undefined })).salesOnly).toBe(true);
       expect((await accepted('salesOnly', false)).salesOnly).toBe(false);
       expect((await accepted('salesOnly', undefined)).salesOnly).toBe(false);
-      await refused('salesOnly', 'true');
-      await refused('salesOnly', null);
+      await refused('salesOnly', 'yes');
+      await refused('salesOnly', '1');
+      await refused('salesOnly', '');
     });
 
     it('declaredArtists holds 1 to 20 names of 1 to 255 characters each', async () => {
@@ -446,152 +494,162 @@ describe('partner applications (individual)', () => {
       expect(await refused('declaredArtists', names(21))).toBe('too_big');
       expect(await refused('declaredArtists', names(21), 'declaredArtists', { salesOnly: true })).toBe('too_big');
       expect(await refused('declaredArtists', [])).toBe('too_small');
-      expect((await accepted('declaredArtists', ['A'])).declaredArtists).toEqual(['A']);
+      // One form part is a list of one name.
+      expect((await accepted('declaredArtists', 'A')).declaredArtists).toEqual(['A']);
       await accepted('declaredArtists', ['n'.repeat(255)]);
       expect(await refused('declaredArtists', ['n'.repeat(256)], 'declaredArtists/0')).toBe('too_big');
       expect(await refused('declaredArtists', ['Hợp lệ', ''], 'declaredArtists/1')).toBe('too_small');
       expect(await refused('declaredArtists', ['   '], 'declaredArtists/0')).toBe('too_small');
-      await refused('declaredArtists', 'Nghệ sĩ Một');
     });
 
     it('a member the ticket does not list is refused, including the organization identifiers', async () => {
       await refused('taxCode', '0312345678');
-      await refused('businessRegistration', await upload('gpkd.pdf', PDF));
+      await refused('businessRegistration', file('gpkd.pdf', PDF));
       await refused('applicantAccountId', '00000000-0000-4000-8000-000000000000');
       await refused('duplicateWarning', true);
     });
   });
 
-  describe('files', () => {
-    it('citizenIdImage takes pdf, jpg or png', async () => {
+  describe('attached files', () => {
+    /** Every refusal of a file leaves nothing behind: no application, no file, no email, no notification. */
+    async function expectRefusedWith(
+      res: { status: number; body: { code: string; errors: Errors } },
+      ...errors: string[]
+    ) {
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe('VALIDATION_FAILED');
+      expect(errorsOf(res)).toEqual(errors.sort());
+      await expectNothingCreated();
+    }
+
+    it('citizenIdImage takes one pdf, jpg or png file, by its content', async () => {
       for (const [name, content] of [
         ['cccd.pdf', PDF],
         ['cccd.jpg', JPG],
         ['cccd.jpeg', JPG],
         ['CCCD.PNG', PNG],
       ] as const) {
-        const res = await submit({ citizenIdImage: await upload(name, content) });
+        const res = await submit({ citizenIdImage: file(name, content) });
         expect(res.status, name).toBe(201);
+        expect(one(await filesOf(created(res).id))).toMatchObject({ kind: 'CITIZEN_ID_IMAGE', fileName: name });
       }
     });
 
-    it('a citizen ID image of another type is refused when uploaded, and nothing is stored', async () => {
+    it('a citizen ID image of another type, or renamed to look like a picture, is refused for its format', async () => {
       for (const [name, content] of [
-        ['cccd.gif', Buffer.from('GIF89a demo')],
+        ['cccd.gif', GIF],
         ['cccd.heic', Buffer.from('ftypheic')],
-        ['cccd.jpg', PDF],
+        ['cccd.jpg', DOCX],
+        ['rong.jpg', Buffer.alloc(0)],
       ] as const) {
-        const res = await t
-          .http()
-          .post('/api/partner-applications/attachments')
-          .attach('file', content, { filename: name })
-          .expect(422);
-        expect(res.body.code, name).toBe('PARTNER_APPLICATION_FILE_TYPE_NOT_ALLOWED');
+        await expectRefusedWith(
+          await submit({ citizenIdImage: file(name, content) }),
+          '/body/citizenIdImage/0 invalid_format',
+        );
       }
-      expect(await t.db.select().from(attachments)).toHaveLength(0);
+      expect(clamd.scanned).toHaveLength(0);
     });
 
-    it('a citizen ID image of exactly 10 MB is accepted and one byte more is refused with 413', async () => {
-      const ok = await t
-        .http()
-        .post('/api/partner-applications/attachments')
-        .attach('file', jpgOfSize(10 * MB), { filename: 'cccd-10mb.jpg' })
-        .expect(201);
-      const image = AttachmentSchema.parse(ok.body);
-      expect(image.sizeBytes).toBe(10 * MB);
-      await expectStatus(201, submit({ citizenIdImage: image.id }));
+    it('a citizen ID image of exactly 10 MB is stored and one byte more is refused for its size', async () => {
+      const image = ofSize(JPG, 10 * MB);
+      const res = await expectStatus(201, submit({ citizenIdImage: file('cccd.jpg', image) }));
+      const stored = one(await filesOf(created(res).id));
+      expect(stored.sizeBytes).toBe(10 * MB);
+      expect(Buffer.from(stored.content).equals(image)).toBe(true);
+      await t.reset();
 
-      const tooBig = await t
-        .http()
-        .post('/api/partner-applications/attachments')
-        .attach('file', jpgOfSize(10 * MB + 1), { filename: 'cccd-qua-10mb.jpg' })
-        .expect(413);
-      expect(tooBig.body.code).toBe('PAYLOAD_TOO_LARGE');
+      await expectRefusedWith(
+        await submit({ citizenIdImage: file('cccd.jpg', ofSize(JPG, 10 * MB + 1)) }),
+        '/body/citizenIdImage/0 too_big',
+      );
+      expect(clamd.scanned).toHaveLength(1);
     }, 30_000);
 
     it('citizenIdImage is exactly one file', async () => {
-      const [first, second] = [await upload('a.jpg'), await upload('b.jpg')];
-      expectInvalid(await submit({ citizenIdImage: [first, second] }), 'citizenIdImage');
-      expectInvalid(await submit({ citizenIdImage: [first] }), 'citizenIdImage');
-      expectInvalid(await submit({ citizenIdImage: 'khong-phai-id' }), 'citizenIdImage');
-      await expectNothingCreated();
+      await expectRefusedWith(
+        await submit({ citizenIdImage: [file('a.jpg'), file('b.jpg')] }),
+        '/body/citizenIdImage too_big',
+      );
+      // Text in place of the file.
+      await expectRefusedWith(await submit({ citizenIdImage: 'cccd.jpg' }), '/body/citizenIdImage invalid_type');
+      // A body that is not a form can still carry an empty list where the file belongs.
+      await expectRefusedWith(
+        await t.http().post('/api/partner-applications/individual').send({
+          legalForm: 'cá nhân',
+          applicantName: 'Nguyễn Văn A',
+          contactEmail: 'a@x.com',
+          legalName: 'Nguyễn Văn A',
+          citizenId: CITIZEN_ID,
+          salesOnly: 'true',
+          citizenIdImage: [],
+        }),
+        '/body/citizenIdImage too_small',
+      );
     });
 
     it('otherDocuments takes none, one or two files and refuses a third: three files per application', async () => {
-      expect((await submit({ otherDocuments: [] })).status).toBe(201);
-      expect((await submit({ otherDocuments: [await upload('a.pdf', PDF)] })).status).toBe(201);
-      const two = await submit({ otherDocuments: [await upload('a.pdf', PDF), await upload('b.png', PNG)] });
-      expect(two.status).toBe(201);
-      expect(
-        (
-          await t.db
-            .select()
-            .from(attachments)
-            .where(eq(attachments.applicationId, created(two).id))
-        ).length,
-      ).toBe(3);
-      const attachedBefore = (await state()).attachedFiles.length;
+      expect((await submit({ otherDocuments: undefined })).status).toBe(201);
+      expect((await submit({ otherDocuments: [file('a.pdf', PDF)] })).status).toBe(201);
+      const two = await expectStatus(201, submit({ otherDocuments: [file('a.pdf', PDF), file('b.png', PNG)] }));
+      expect(await filesOf(created(two).id)).toHaveLength(3);
+      await t.reset();
+      clamd.scanned = [];
 
-      const three = [await upload('a.pdf', PDF), await upload('b.pdf', PDF), await upload('c.pdf', PDF)];
-      expectInvalid(await submit({ otherDocuments: three }), 'otherDocuments');
-      expect((await state()).attachedFiles).toHaveLength(attachedBefore);
-    });
-
-    it('a file listed twice is refused', async () => {
-      const image = await upload();
-      expectInvalid(await submit({ citizenIdImage: image, otherDocuments: [image] }), 'otherDocuments');
-      const other = await upload('b.pdf', PDF);
-      expectInvalid(await submit({ otherDocuments: [other, other] }), 'otherDocuments');
-      await expectNothingCreated();
-    });
-
-    it('a citizen ID image that does not exist or belongs to another application is refused and nothing is attached', async () => {
-      const unknown = '00000000-0000-4000-8000-000000000000';
-      const first = await expectStatus(201, submit());
-      const usedImage = one(
-        await t.db
-          .select()
-          .from(attachments)
-          .where(eq(attachments.applicationId, created(first).id)),
-      ).id;
-      const organization = await expectStatus(
-        201,
-        t
-          .http()
-          .post('/api/partner-applications')
-          .send({
-            legalForm: 'tổ chức',
-            applicantName: 'Trần Thị Bích',
-            contactEmail: 'b@y.com',
-            legalName: 'Công ty TNHH Âm Nhạc Sao',
-            taxCode: '0312345678',
-            businessRegistration: await upload('gpkd.pdf', PDF),
-            salesOnly: true,
-          }),
+      await expectRefusedWith(
+        await submit({ otherDocuments: [file('a.pdf', PDF), file('b.pdf', PDF), file('c.pdf', PDF)] }),
+        '/body/otherDocuments too_big',
       );
-      const usedRegistration = one(
-        await t.db
-          .select()
-          .from(attachments)
-          .where(eq(attachments.applicationId, PartnerApplicationSchema.parse(organization.body).id)),
-      ).id;
-      const before = await state();
+      expect(clamd.scanned).toHaveLength(0);
+    });
 
-      for (const image of [usedImage, usedRegistration, unknown]) {
-        const res = await expectStatus(422, submit({ citizenIdImage: image }));
-        expect(res.body.code).toBe('PARTNER_APPLICATION_CITIZEN_ID_IMAGE_INVALID');
-      }
+    it('each other document is a pdf, jpg or png of at most 10 MB', async () => {
+      const res = await expectStatus(201, submit({ otherDocuments: [file('phu-luc.pdf', ofSize(PDF, 10 * MB))] }));
+      const sizes = (await filesOf(created(res).id)).map((row) => row.sizeBytes);
+      expect(sizes.sort((a, b) => a - b)).toEqual([JPG.length, 10 * MB]);
+      await t.reset();
 
-      const unusable = await upload('c.jpg');
-      const badOther = await expectStatus(422, submit({ citizenIdImage: unusable, otherDocuments: [unknown] }));
-      expect(badOther.body.code).toBe('PARTNER_APPLICATION_OTHER_DOCUMENTS_INVALID');
-      expect(one(await t.db.select().from(attachments).where(eq(attachments.id, unusable))).applicationId).toBeNull();
+      await expectRefusedWith(
+        await submit({ otherDocuments: [file('hop-dong.pdf', DOCX), file('lon.png', ofSize(PNG, 10 * MB + 1))] }),
+        '/body/otherDocuments/0 invalid_format',
+        '/body/otherDocuments/1 too_big',
+      );
+    }, 30_000);
 
-      const after = await state();
-      expect(after.applications).toHaveLength(before.applications.length);
-      expect(after.emails).toHaveLength(before.emails.length);
-      expect(after.notifications).toHaveLength(before.notifications.length);
-      expect(after.attachedFiles).toHaveLength(before.attachedFiles.length);
+    it('too many files, a wrong format and a wrong size are reported together', async () => {
+      const res = await submit({
+        citizenIdImage: [file('a.jpg'), file('anh-dong.gif', ofSize(GIF, 11 * MB))],
+        otherDocuments: [file('a.pdf', PDF), file('b.pdf', PDF), file('c.pdf', PDF)],
+      });
+      await expectRefusedWith(
+        res,
+        '/body/citizenIdImage too_big',
+        '/body/citizenIdImage/1 invalid_format',
+        '/body/citizenIdImage/1 too_big',
+        '/body/otherDocuments too_big',
+      );
+    }, 30_000);
+
+    describe('malware scan', () => {
+      it('an infected citizen ID image is refused as infected and nothing is stored', async () => {
+        const infected = Buffer.concat([JPG, Buffer.from(EICAR)]);
+        const res = await submit({ citizenIdImage: file('cccd.jpg', infected), otherDocuments: [file('a.pdf', PDF)] });
+        expect(res.status).toBe(422);
+        expect(res.body.code).toBe('PARTNER_APPLICATION_FILE_INFECTED');
+        expect(errorsOf(res)).toEqual(['/body/citizenIdImage/0 infected']);
+        expect(clamd.scanned).toHaveLength(2);
+        await expectNothingCreated();
+      });
+
+      it('a scan that fails or does not answer is refused as not scanned, to retry later', async () => {
+        for (const mode of ['error', 'silent'] as const) {
+          clamd.mode = mode;
+          const res = await submit({ otherDocuments: [file('a.pdf', PDF)] });
+          expect(res.status, mode).toBe(503);
+          expect(res.body.code).toBe('PARTNER_APPLICATION_FILE_SCAN_UNAVAILABLE');
+          expect(errorsOf(res)).toEqual(['/body/citizenIdImage/0 not_scanned', '/body/otherDocuments/0 not_scanned']);
+          await expectNothingCreated();
+        }
+      });
     });
   });
 });

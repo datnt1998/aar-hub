@@ -32,114 +32,15 @@
         ]
       }
     },
-    "/api/partner-applications/attachments": {
-      "post": {
-        "description": "Bước trước khi nộp đơn. Dùng id trả về trong businessRegistration / citizenIdImage / otherDocuments. Không cần tài khoản. File pdf, jpg hoặc png, tối đa 10485760 byte (10 MB); loại khác trả lỗi PARTNER_APPLICATION_FILE_TYPE_NOT_ALLOWED.",
-        "operationId": "PartnerApplications_uploadAttachment",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/AttachmentUploadRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Attachment"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "PAYLOAD_TOO_LARGE",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Problem"
-                    },
-                    {
-                      "type": "object",
-                      "required": [
-                        "code"
-                      ],
-                      "properties": {
-                        "code": {
-                          "type": "string",
-                          "enum": [
-                            "PAYLOAD_TOO_LARGE"
-                          ]
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "PARTNER_APPLICATION_FILE_TYPE_NOT_ALLOWED",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Problem"
-                    },
-                    {
-                      "type": "object",
-                      "required": [
-                        "code"
-                      ],
-                      "properties": {
-                        "code": {
-                          "type": "string",
-                          "enum": [
-                            "PARTNER_APPLICATION_FILE_TYPE_NOT_ALLOWED"
-                          ]
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Error (Problem Details)",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          }
-        },
-        "summary": "Tải lên một file đính kèm",
-        "tags": [
-          "partner-applications"
-        ]
-      }
-    },
     "/api/partner-applications": {
       "post": {
-        "description": "Không cần tài khoản. Thành công: đơn ở SUBMITTED; email xác nhận gửi tới email liên hệ trong đơn, người nộp đơn không nhận thông báo trong AarHub; mọi admin nền tảng nhận email và thông báo trong AarHub. Trùng mã số thuế với đối tác hoặc đơn đang mở vẫn được nhận và phản hồi không có cảnh báo nào. Lỗi: không có đơn nào được tạo.",
+        "description": "Không cần tài khoản. Một lần gửi multipart/form-data gồm thông tin đơn và các tệp; không có bước tải tệp lên trước. Hệ thống kiểm số tệp, định dạng (theo nội dung) và dung lượng của mọi tệp cùng mọi trường khác, báo mọi chỗ sai trong một lần (400 VALIDATION_FAILED); đơn hợp lệ thì quét mã độc từng tệp rồi mới nhận đơn. Tệp nhiễm mã độc: 422 PARTNER_APPLICATION_FILE_INFECTED; chưa quét được: 503 PARTNER_APPLICATION_FILE_SCAN_UNAVAILABLE, thử lại sau; errors[].pointer chỉ tệp bị từ chối (code infected hoặc not_scanned). Thành công: đơn ở SUBMITTED cùng các tệp; email xác nhận gửi tới email liên hệ trong đơn, người nộp đơn không nhận thông báo trong AarHub; mọi admin nền tảng nhận email và thông báo trong AarHub. Trùng mã số thuế với đối tác hoặc đơn đang mở vẫn được nhận và phản hồi không có cảnh báo nào. Lỗi: không có đơn nào được tạo và không tệp nào được lưu. Quá 10 tệp hoặc 100 trường chữ: 400 BAD_REQUEST.",
         "operationId": "PartnerApplications_submitOrganization",
         "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": {
+            "multipart/form-data": {
               "schema": {
                 "$ref": "#/components/schemas/OrganizationApplicationCreateRequest"
               }
@@ -158,7 +59,7 @@
             }
           },
           "422": {
-            "description": "PARTNER_APPLICATION_BUSINESS_REGISTRATION_INVALID, PARTNER_APPLICATION_OTHER_DOCUMENTS_INVALID",
+            "description": "PARTNER_APPLICATION_FILE_INFECTED",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -175,8 +76,35 @@
                         "code": {
                           "type": "string",
                           "enum": [
-                            "PARTNER_APPLICATION_BUSINESS_REGISTRATION_INVALID",
-                            "PARTNER_APPLICATION_OTHER_DOCUMENTS_INVALID"
+                            "PARTNER_APPLICATION_FILE_INFECTED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "PARTNER_APPLICATION_FILE_SCAN_UNAVAILABLE",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "code"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "PARTNER_APPLICATION_FILE_SCAN_UNAVAILABLE"
                           ]
                         }
                       }
@@ -197,7 +125,7 @@
             }
           }
         },
-        "summary": "Nộp đơn đăng ký đối tác hình thức tổ chức",
+        "summary": "Nộp đơn đăng ký đối tác hình thức tổ chức, kèm tệp",
         "tags": [
           "partner-applications"
         ]
@@ -205,13 +133,13 @@
     },
     "/api/partner-applications/individual": {
       "post": {
-        "description": "Không cần tài khoản. Thành công: đơn ở SUBMITTED; email xác nhận gửi tới email liên hệ trong đơn, người nộp đơn không nhận thông báo trong AarHub; mọi admin nền tảng nhận email và thông báo trong AarHub. Trùng số CCCD với đối tác hoặc đơn đang mở vẫn được nhận và phản hồi không có cảnh báo nào. Lỗi: không có đơn nào được tạo.",
+        "description": "Không cần tài khoản. Một lần gửi multipart/form-data gồm thông tin đơn và các tệp; không có bước tải tệp lên trước. Hệ thống kiểm số tệp, định dạng (theo nội dung) và dung lượng của mọi tệp cùng mọi trường khác, báo mọi chỗ sai trong một lần (400 VALIDATION_FAILED); đơn hợp lệ thì quét mã độc từng tệp rồi mới nhận đơn. Tệp nhiễm mã độc: 422 PARTNER_APPLICATION_FILE_INFECTED; chưa quét được: 503 PARTNER_APPLICATION_FILE_SCAN_UNAVAILABLE, thử lại sau; errors[].pointer chỉ tệp bị từ chối (code infected hoặc not_scanned). Thành công: đơn ở SUBMITTED cùng các tệp; email xác nhận gửi tới email liên hệ trong đơn, người nộp đơn không nhận thông báo trong AarHub; mọi admin nền tảng nhận email và thông báo trong AarHub. Trùng số CCCD với đối tác hoặc đơn đang mở vẫn được nhận và phản hồi không có cảnh báo nào. Lỗi: không có đơn nào được tạo và không tệp nào được lưu. Quá 10 tệp hoặc 100 trường chữ: 400 BAD_REQUEST.",
         "operationId": "PartnerApplications_submitIndividual",
         "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": {
+            "multipart/form-data": {
               "schema": {
                 "$ref": "#/components/schemas/IndividualApplicationCreateRequest"
               }
@@ -230,7 +158,7 @@
             }
           },
           "422": {
-            "description": "PARTNER_APPLICATION_CITIZEN_ID_IMAGE_INVALID, PARTNER_APPLICATION_OTHER_DOCUMENTS_INVALID",
+            "description": "PARTNER_APPLICATION_FILE_INFECTED",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -247,8 +175,35 @@
                         "code": {
                           "type": "string",
                           "enum": [
-                            "PARTNER_APPLICATION_CITIZEN_ID_IMAGE_INVALID",
-                            "PARTNER_APPLICATION_OTHER_DOCUMENTS_INVALID"
+                            "PARTNER_APPLICATION_FILE_INFECTED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "PARTNER_APPLICATION_FILE_SCAN_UNAVAILABLE",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "code"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "PARTNER_APPLICATION_FILE_SCAN_UNAVAILABLE"
                           ]
                         }
                       }
@@ -269,7 +224,7 @@
             }
           }
         },
-        "summary": "Nộp đơn đăng ký đối tác hình thức cá nhân",
+        "summary": "Nộp đơn đăng ký đối tác hình thức cá nhân, kèm ảnh CCCD và hồ sơ khác",
         "tags": [
           "partner-applications"
         ]
@@ -306,50 +261,6 @@
         "required": [
           "status",
           "uptimeSeconds"
-        ],
-        "additionalProperties": false
-      },
-      "AttachmentUploadRequest": {
-        "type": "object",
-        "properties": {
-          "file": {
-            "type": "string",
-            "format": "binary",
-            "description": "File pdf, jpg hoặc png, tối đa 10485760 byte (10 MB)"
-          }
-        },
-        "required": [
-          "file"
-        ],
-        "additionalProperties": false
-      },
-      "Attachment": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-          },
-          "fileName": {
-            "type": "string",
-            "description": "Tên file gốc"
-          },
-          "contentType": {
-            "type": "string",
-            "description": "Loại file nhận ra từ nội dung: application/pdf, image/jpeg hoặc image/png"
-          },
-          "sizeBytes": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 9007199254740991
-          }
-        },
-        "required": [
-          "id",
-          "fileName",
-          "contentType",
-          "sizeBytes"
         ],
         "additionalProperties": false
       },
@@ -390,34 +301,42 @@
             "type": "string"
           },
           "businessRegistration": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "description": "Giấy đăng ký kinh doanh: id của đúng một file (pdf, jpg, png; tối đa 10 MB), lấy từ POST /api/partner-applications/attachments"
-          },
-          "otherDocuments": {
-            "default": [],
-            "description": "Hồ sơ khác (tùy chọn): id của tối đa 2 file (pdf, jpg, png; tối đa 10 MB mỗi file). Cả đơn tối đa 3 file, mỗi file chỉ dùng một lần.",
             "type": "array",
             "items": {
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-            }
+              "format": "binary"
+            },
+            "maxItems": 1,
+            "minItems": 1,
+            "description": "Giấy đăng ký kinh doanh: đúng 1 tệp, gửi cùng đơn. pdf, jpg hoặc png nhận theo nội dung tệp, không theo đuôi tên; mỗi tệp tối đa 10485760 byte (10 MB). Cả đơn tối đa 3 tệp. Tệp sai định dạng: invalid_format tại /body/<trường>/<thứ tự>; tệp quá lớn: too_big tại /body/<trường>/<thứ tự>; quá số tệp: too_big tại /body/<trường>. Bỏ trống: invalid_type; danh sách rỗng: too_small"
           },
-          "salesOnly": {
-            "default": false,
-            "description": "Chọn \"chỉ bán hàng\": không cần khai báo nghệ sĩ dự kiến. Mặc định false.",
-            "type": "boolean"
-          },
-          "declaredArtists": {
-            "description": "Tên nghệ sĩ dự kiến, 20 mục tối đa, mỗi tên 1–255 ký tự. Bắt buộc ít nhất một khi salesOnly là false.",
+          "otherDocuments": {
+            "description": "Hồ sơ khác (tùy chọn): tối đa 2 tệp, mỗi tệp một phần form cùng tên otherDocuments, gửi cùng đơn. pdf, jpg hoặc png nhận theo nội dung tệp, không theo đuôi tên; mỗi tệp tối đa 10485760 byte (10 MB). Cả đơn tối đa 3 tệp. Tệp sai định dạng: invalid_format tại /body/<trường>/<thứ tự>; tệp quá lớn: too_big tại /body/<trường>/<thứ tự>; quá số tệp: too_big tại /body/<trường>",
             "type": "array",
             "items": {
+              "type": "string",
+              "format": "binary"
+            },
+            "maxItems": 2
+          },
+          "salesOnly": {
+            "description": "Chọn \"chỉ bán hàng\" (\"true\"/\"false\"): không cần khai báo nghệ sĩ dự kiến. Mặc định \"false\".",
+            "default": "false",
+            "type": "string",
+            "enum": [
+              "true",
+              "false"
+            ]
+          },
+          "declaredArtists": {
+            "type": "array",
+            "items": {
+              "type": "string",
               "minLength": 1,
-              "maxLength": 255,
-              "type": "string"
-            }
+              "maxLength": 255
+            },
+            "maxItems": 20,
+            "description": "Tên nghệ sĩ dự kiến, mỗi tên một phần form cùng tên declaredArtists; 20 mục tối đa, mỗi tên 1–255 ký tự. Bắt buộc ít nhất một khi salesOnly là false."
           }
         },
         "required": [
@@ -525,38 +444,46 @@
             "minLength": 12,
             "maxLength": 12,
             "pattern": "^[0-9]{12}$",
-            "description": "Số CCCD: đúng 12 chữ số, chỉ gồm chữ số. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu. Trùng với đối tác hay đơn đang mở vẫn được nhận; cảnh báo trùng chỉ dành cho admin",
+            "description": "Số CCCD: đúng 12 chữ số, chỉ gồm chữ số. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu. Trùng với đối tác hay đơn đang mở vẫn được nhận; cảnh báo trùng chỉ dành cho admin. Bỏ trống: invalid_type; rỗng: too_small; thiếu số hoặc có ký tự khác chữ số: invalid_format; quá 12 ký tự: too_big",
             "type": "string"
           },
           "citizenIdImage": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "description": "Ảnh CCCD: id của đúng một file (pdf, jpg, png; tối đa 10 MB), lấy từ POST /api/partner-applications/attachments"
-          },
-          "otherDocuments": {
-            "default": [],
-            "description": "Hồ sơ khác (tùy chọn): id của tối đa 2 file (pdf, jpg, png; tối đa 10 MB mỗi file). Cả đơn tối đa 3 file, mỗi file chỉ dùng một lần.",
             "type": "array",
             "items": {
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-            }
+              "format": "binary"
+            },
+            "maxItems": 1,
+            "minItems": 1,
+            "description": "Ảnh CCCD: đúng 1 tệp, gửi cùng đơn. pdf, jpg hoặc png nhận theo nội dung tệp, không theo đuôi tên; mỗi tệp tối đa 10485760 byte (10 MB). Cả đơn tối đa 3 tệp. Tệp sai định dạng: invalid_format tại /body/<trường>/<thứ tự>; tệp quá lớn: too_big tại /body/<trường>/<thứ tự>; quá số tệp: too_big tại /body/<trường>. Bỏ trống: invalid_type; danh sách rỗng: too_small"
           },
-          "salesOnly": {
-            "default": false,
-            "description": "Chọn \"chỉ bán hàng\": không cần khai báo nghệ sĩ dự kiến. Mặc định false.",
-            "type": "boolean"
-          },
-          "declaredArtists": {
-            "description": "Tên nghệ sĩ dự kiến, 20 mục tối đa, mỗi tên 1–255 ký tự. Bắt buộc ít nhất một khi salesOnly là false.",
+          "otherDocuments": {
+            "description": "Hồ sơ khác (tùy chọn): tối đa 2 tệp, mỗi tệp một phần form cùng tên otherDocuments, gửi cùng đơn. pdf, jpg hoặc png nhận theo nội dung tệp, không theo đuôi tên; mỗi tệp tối đa 10485760 byte (10 MB). Cả đơn tối đa 3 tệp. Tệp sai định dạng: invalid_format tại /body/<trường>/<thứ tự>; tệp quá lớn: too_big tại /body/<trường>/<thứ tự>; quá số tệp: too_big tại /body/<trường>",
             "type": "array",
             "items": {
+              "type": "string",
+              "format": "binary"
+            },
+            "maxItems": 2
+          },
+          "salesOnly": {
+            "description": "Chọn \"chỉ bán hàng\" (\"true\"/\"false\"): không cần khai báo nghệ sĩ dự kiến. Mặc định \"false\".",
+            "default": "false",
+            "type": "string",
+            "enum": [
+              "true",
+              "false"
+            ]
+          },
+          "declaredArtists": {
+            "type": "array",
+            "items": {
+              "type": "string",
               "minLength": 1,
-              "maxLength": 255,
-              "type": "string"
-            }
+              "maxLength": 255
+            },
+            "maxItems": 20,
+            "description": "Tên nghệ sĩ dự kiến, mỗi tên một phần form cùng tên declaredArtists; 20 mục tối đa, mỗi tên 1–255 ký tự. Bắt buộc ít nhất một khi salesOnly là false."
           }
         },
         "required": [
@@ -661,7 +588,7 @@
             "description": "Request path that produced the error"
           },
           "errors": {
-            "description": "Per-input errors when `code` is VALIDATION_FAILED",
+            "description": "Per-input errors: every invalid input when `code` is VALIDATION_FAILED; the inputs a business error is about for the codes that name them",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/FieldError"
@@ -688,7 +615,7 @@
           },
           "code": {
             "type": "string",
-            "description": "Machine-readable reason (schema issue code such as `too_small`, `invalid_format`)",
+            "description": "Machine-readable reason: a schema issue code such as `too_small`, `invalid_format`; for a business error, the reason its route documents (`infected`)",
             "example": "invalid_format"
           },
           "detail": {

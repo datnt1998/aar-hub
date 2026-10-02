@@ -1,81 +1,88 @@
 import { Injectable } from '@nestjs/common';
 import { Clock } from '../common/time/clock.js';
+import { MalwareScanner } from '../malware-scan/malware-scanner.js';
+import { FileInfectedError, FileScanUnavailableError } from './partner-applications.errors.js';
 import {
-  BusinessRegistrationInvalidError,
-  CitizenIdImageInvalidError,
-  FileTypeNotAllowedError,
-  OtherDocumentsInvalidError,
-} from './partner-applications.errors.js';
-import {
-  allowedContentType,
-  type ApplicationFiles,
-  type FileUpload,
+  type AcceptedFile,
+  type ApplicationFile,
   type NewApplication,
   planNotifications,
 } from './partner-applications.js';
 import { PartnerApplicationsRepository } from './partner-applications.repository.js';
 import type {
-  AttachmentResponse,
   IndividualApplicationCreate,
   IndividualPartnerApplicationResponse,
   OrganizationApplicationCreate,
   PartnerApplicationResponse,
 } from './partner-applications.schemas.js';
 
+/** A file of the submission with the input it came in, and its JSON pointer for error reports. */
+type SubmittedFile = ApplicationFile & { pointer: string };
+
+/** The files of one input, tagged with their kind and pointer. */
+function filesOf(input: string, kind: ApplicationFile['kind'], files: AcceptedFile[]): SubmittedFile[] {
+  return files.map((file, index) => ({ ...file, kind, pointer: `/body/${input}/${index}` }));
+}
+
 @Injectable()
 export class PartnerApplicationsService {
   constructor(
     private readonly repository: PartnerApplicationsRepository,
+    private readonly scanner: MalwareScanner,
     private readonly clock: Clock,
   ) {}
 
-  /** Stores a pdf, jpg or png file for a later application. Other types are refused. */
-  uploadAttachment(file: FileUpload): Promise<AttachmentResponse> {
-    // Multer decodes multipart file names as latin1; browsers send UTF-8.
-    const fileName = Buffer.from(file.originalname, 'latin1').toString('utf8');
-    const contentType = allowedContentType(fileName, file.buffer);
-    if (!contentType) {
-      throw new FileTypeNotAllowedError();
-    }
-    return this.repository.insertAttachment({ fileName, contentType, content: file.buffer }, this.clock.now());
-  }
-
-  /** Creates an organization application in SUBMITTED, or creates nothing. Duplicate tax codes are accepted silently. */
+  /** Creates an organization application in SUBMITTED with its files, or nothing. Duplicate tax codes are accepted silently. */
   submitOrganization(input: OrganizationApplicationCreate): Promise<PartnerApplicationResponse> {
     const { businessRegistration, otherDocuments, ...application } = input;
-    return this.submit(application, { main: businessRegistration, kind: 'BUSINESS_REGISTRATION', otherDocuments });
+    return this.submit(application, [
+      ...filesOf('businessRegistration', 'BUSINESS_REGISTRATION', businessRegistration),
+      ...filesOf('otherDocuments', 'OTHER', otherDocuments),
+    ]);
   }
 
-  /** Creates an individual application in SUBMITTED, or creates nothing. Duplicate citizen IDs are accepted silently. */
+  /** Creates an individual application in SUBMITTED with its files, or nothing. Duplicate citizen IDs are accepted silently. */
   submitIndividual(input: IndividualApplicationCreate): Promise<IndividualPartnerApplicationResponse> {
     const { citizenIdImage, otherDocuments, ...application } = input;
-    return this.submit(application, { main: citizenIdImage, kind: 'CITIZEN_ID_IMAGE', otherDocuments });
+    return this.submit(application, [
+      ...filesOf('citizenIdImage', 'CITIZEN_ID_IMAGE', citizenIdImage),
+      ...filesOf('otherDocuments', 'OTHER', otherDocuments),
+    ]);
   }
 
   /**
-   * Stores the application in SUBMITTED with its files and queues its notifications in one transaction: a file that
-   * cannot be attached rolls everything back. The confirmation email goes to the contact email in the application;
-   * the applicant gets no in-app notification. Every platform admin gets an email and an in-app notification.
+   * Stores the application in SUBMITTED with its files and queues its notifications, or stores nothing.
+   * Files arrive with the application, already checked for count, type and size; each is scanned for malware before
+   * anything is stored, and one infected or unscanned file refuses the whole application (BR-PARTNER-ONBOARDING-035,
+   * -038). The confirmation email goes to the contact email in the application; the applicant gets no in-app
+   * notification. Every platform admin gets an email and an in-app notification.
    */
-  private submit<T extends NewApplication>(
+  private async submit<T extends NewApplication>(
     application: T,
-    files: ApplicationFiles,
+    files: SubmittedFile[],
   ): Promise<T & { id: string; status: 'SUBMITTED'; submittedAt: string }> {
+    const verdicts = await Promise.all(files.map((file) => this.scanner.scan(file.content)));
+    const refused = files.flatMap((file, index) => {
+      const verdict = verdicts[index];
+      if (verdict === 'infected') {
+        return [{ pointer: file.pointer, code: 'infected', detail: 'The file is infected with malware' }];
+      }
+      if (verdict !== 'clean') {
+        return [{ pointer: file.pointer, code: 'not_scanned', detail: 'The file could not be scanned' }];
+      }
+      return [];
+    });
+    if (verdicts.includes('infected')) {
+      throw new FileInfectedError(refused);
+    }
+    if (refused.length > 0) {
+      throw new FileScanUnavailableError(refused);
+    }
+
     const now = this.clock.now();
     return this.repository.transaction(async (tx) => {
       const { id, submittedAt } = await this.repository.insertApplication(tx, application, now);
-
-      if ((await this.repository.attachUploads(tx, id, [files.main], files.kind)) !== 1) {
-        throw files.kind === 'CITIZEN_ID_IMAGE'
-          ? new CitizenIdImageInvalidError()
-          : new BusinessRegistrationInvalidError();
-      }
-      if (files.otherDocuments.length > 0) {
-        const attachedOthers = await this.repository.attachUploads(tx, id, files.otherDocuments, 'OTHER');
-        if (attachedOthers !== files.otherDocuments.length) {
-          throw new OtherDocumentsInvalidError();
-        }
-      }
+      await this.repository.insertFiles(tx, id, files, now);
 
       const admins = await this.repository.findPlatformAdmins(tx);
       const { inApp, emails } = planNotifications(application.legalForm, application.contactEmail, admins);

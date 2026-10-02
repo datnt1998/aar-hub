@@ -12,8 +12,22 @@
     {
       "idx": 1,
       "version": "7",
-      "when": 1790956935603,
-      "tag": "0001_individual_applications",
+      "when": 1790958989208,
+      "tag": "0001_drop_unsubmitted_uploads",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790958989565,
+      "tag": "0002_attachments_stored_with_application",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790960801973,
+      "tag": "0003_individual_applications",
       "breakpoints": true
     }
   ]

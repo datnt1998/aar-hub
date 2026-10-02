@@ -20,26 +20,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/partner-applications/attachments": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Tải lên một file đính kèm
-         * @description Bước trước khi nộp đơn. Dùng id trả về trong businessRegistration / citizenIdImage / otherDocuments. Không cần tài khoản. File pdf, jpg hoặc png, tối đa 10485760 byte (10 MB); loại khác trả lỗi PARTNER_APPLICATION_FILE_TYPE_NOT_ALLOWED.
-         */
-        post: operations["PartnerApplications_uploadAttachment"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/partner-applications": {
         parameters: {
             query?: never;
@@ -50,8 +30,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Nộp đơn đăng ký đối tác hình thức tổ chức
-         * @description Không cần tài khoản. Thành công: đơn ở SUBMITTED; email xác nhận gửi tới email liên hệ trong đơn, người nộp đơn không nhận thông báo trong AarHub; mọi admin nền tảng nhận email và thông báo trong AarHub. Trùng mã số thuế với đối tác hoặc đơn đang mở vẫn được nhận và phản hồi không có cảnh báo nào. Lỗi: không có đơn nào được tạo.
+         * Nộp đơn đăng ký đối tác hình thức tổ chức, kèm tệp
+         * @description Không cần tài khoản. Một lần gửi multipart/form-data gồm thông tin đơn và các tệp; không có bước tải tệp lên trước. Hệ thống kiểm số tệp, định dạng (theo nội dung) và dung lượng của mọi tệp cùng mọi trường khác, báo mọi chỗ sai trong một lần (400 VALIDATION_FAILED); đơn hợp lệ thì quét mã độc từng tệp rồi mới nhận đơn. Tệp nhiễm mã độc: 422 PARTNER_APPLICATION_FILE_INFECTED; chưa quét được: 503 PARTNER_APPLICATION_FILE_SCAN_UNAVAILABLE, thử lại sau; errors[].pointer chỉ tệp bị từ chối (code infected hoặc not_scanned). Thành công: đơn ở SUBMITTED cùng các tệp; email xác nhận gửi tới email liên hệ trong đơn, người nộp đơn không nhận thông báo trong AarHub; mọi admin nền tảng nhận email và thông báo trong AarHub. Trùng mã số thuế với đối tác hoặc đơn đang mở vẫn được nhận và phản hồi không có cảnh báo nào. Lỗi: không có đơn nào được tạo và không tệp nào được lưu. Quá 10 tệp hoặc 100 trường chữ: 400 BAD_REQUEST.
          */
         post: operations["PartnerApplications_submitOrganization"];
         delete?: never;
@@ -70,8 +50,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Nộp đơn đăng ký đối tác hình thức cá nhân
-         * @description Không cần tài khoản. Thành công: đơn ở SUBMITTED; email xác nhận gửi tới email liên hệ trong đơn, người nộp đơn không nhận thông báo trong AarHub; mọi admin nền tảng nhận email và thông báo trong AarHub. Trùng số CCCD với đối tác hoặc đơn đang mở vẫn được nhận và phản hồi không có cảnh báo nào. Lỗi: không có đơn nào được tạo.
+         * Nộp đơn đăng ký đối tác hình thức cá nhân, kèm ảnh CCCD và hồ sơ khác
+         * @description Không cần tài khoản. Một lần gửi multipart/form-data gồm thông tin đơn và các tệp; không có bước tải tệp lên trước. Hệ thống kiểm số tệp, định dạng (theo nội dung) và dung lượng của mọi tệp cùng mọi trường khác, báo mọi chỗ sai trong một lần (400 VALIDATION_FAILED); đơn hợp lệ thì quét mã độc từng tệp rồi mới nhận đơn. Tệp nhiễm mã độc: 422 PARTNER_APPLICATION_FILE_INFECTED; chưa quét được: 503 PARTNER_APPLICATION_FILE_SCAN_UNAVAILABLE, thử lại sau; errors[].pointer chỉ tệp bị từ chối (code infected hoặc not_scanned). Thành công: đơn ở SUBMITTED cùng các tệp; email xác nhận gửi tới email liên hệ trong đơn, người nộp đơn không nhận thông báo trong AarHub; mọi admin nền tảng nhận email và thông báo trong AarHub. Trùng số CCCD với đối tác hoặc đơn đang mở vẫn được nhận và phản hồi không có cảnh báo nào. Lỗi: không có đơn nào được tạo và không tệp nào được lưu. Quá 10 tệp hoặc 100 trường chữ: 400 BAD_REQUEST.
          */
         post: operations["PartnerApplications_submitIndividual"];
         delete?: never;
@@ -93,22 +73,6 @@ export interface components {
             /** @description Seconds since the API process started */
             uptimeSeconds: number;
         };
-        AttachmentUploadRequest: {
-            /**
-             * Format: binary
-             * @description File pdf, jpg hoặc png, tối đa 10485760 byte (10 MB)
-             */
-            file: string;
-        };
-        Attachment: {
-            /** Format: uuid */
-            id: string;
-            /** @description Tên file gốc */
-            fileName: string;
-            /** @description Loại file nhận ra từ nội dung: application/pdf, image/jpeg hoặc image/png */
-            contentType: string;
-            sizeBytes: number;
-        };
         OrganizationApplicationCreateRequest: {
             /**
              * @description Hình thức nộp đơn. Endpoint này chỉ nhận đơn "tổ chức"; đơn "cá nhân" nộp qua POST /api/partner-applications/individual.
@@ -126,22 +90,17 @@ export interface components {
             legalName: string;
             /** @description Mã số thuế: đúng 10 hoặc 13 chữ số, không gạch nối, không dấu cách ở giữa. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu */
             taxCode: string;
+            /** @description Giấy đăng ký kinh doanh: đúng 1 tệp, gửi cùng đơn. pdf, jpg hoặc png nhận theo nội dung tệp, không theo đuôi tên; mỗi tệp tối đa 10485760 byte (10 MB). Cả đơn tối đa 3 tệp. Tệp sai định dạng: invalid_format tại /body/<trường>/<thứ tự>; tệp quá lớn: too_big tại /body/<trường>/<thứ tự>; quá số tệp: too_big tại /body/<trường>. Bỏ trống: invalid_type; danh sách rỗng: too_small */
+            businessRegistration: string[];
+            /** @description Hồ sơ khác (tùy chọn): tối đa 2 tệp, mỗi tệp một phần form cùng tên otherDocuments, gửi cùng đơn. pdf, jpg hoặc png nhận theo nội dung tệp, không theo đuôi tên; mỗi tệp tối đa 10485760 byte (10 MB). Cả đơn tối đa 3 tệp. Tệp sai định dạng: invalid_format tại /body/<trường>/<thứ tự>; tệp quá lớn: too_big tại /body/<trường>/<thứ tự>; quá số tệp: too_big tại /body/<trường> */
+            otherDocuments?: string[];
             /**
-             * Format: uuid
-             * @description Giấy đăng ký kinh doanh: id của đúng một file (pdf, jpg, png; tối đa 10 MB), lấy từ POST /api/partner-applications/attachments
-             */
-            businessRegistration: string;
-            /**
-             * @description Hồ sơ khác (tùy chọn): id của tối đa 2 file (pdf, jpg, png; tối đa 10 MB mỗi file). Cả đơn tối đa 3 file, mỗi file chỉ dùng một lần.
-             * @default []
-             */
-            otherDocuments: string[];
-            /**
-             * @description Chọn "chỉ bán hàng": không cần khai báo nghệ sĩ dự kiến. Mặc định false.
+             * @description Chọn "chỉ bán hàng" ("true"/"false"): không cần khai báo nghệ sĩ dự kiến. Mặc định "false".
              * @default false
+             * @enum {string}
              */
-            salesOnly: boolean;
-            /** @description Tên nghệ sĩ dự kiến, 20 mục tối đa, mỗi tên 1–255 ký tự. Bắt buộc ít nhất một khi salesOnly là false. */
+            salesOnly: "true" | "false";
+            /** @description Tên nghệ sĩ dự kiến, mỗi tên một phần form cùng tên declaredArtists; 20 mục tối đa, mỗi tên 1–255 ký tự. Bắt buộc ít nhất một khi salesOnly là false. */
             declaredArtists?: string[];
         };
         PartnerApplication: {
@@ -175,24 +134,19 @@ export interface components {
             contactEmail: string;
             /** @description Họ tên pháp nhân cá nhân, 1–255 ký tự, không chỉ gồm khoảng trắng */
             legalName: string;
-            /** @description Số CCCD: đúng 12 chữ số, chỉ gồm chữ số. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu. Trùng với đối tác hay đơn đang mở vẫn được nhận; cảnh báo trùng chỉ dành cho admin */
+            /** @description Số CCCD: đúng 12 chữ số, chỉ gồm chữ số. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu. Trùng với đối tác hay đơn đang mở vẫn được nhận; cảnh báo trùng chỉ dành cho admin. Bỏ trống: invalid_type; rỗng: too_small; thiếu số hoặc có ký tự khác chữ số: invalid_format; quá 12 ký tự: too_big */
             citizenId: string;
+            /** @description Ảnh CCCD: đúng 1 tệp, gửi cùng đơn. pdf, jpg hoặc png nhận theo nội dung tệp, không theo đuôi tên; mỗi tệp tối đa 10485760 byte (10 MB). Cả đơn tối đa 3 tệp. Tệp sai định dạng: invalid_format tại /body/<trường>/<thứ tự>; tệp quá lớn: too_big tại /body/<trường>/<thứ tự>; quá số tệp: too_big tại /body/<trường>. Bỏ trống: invalid_type; danh sách rỗng: too_small */
+            citizenIdImage: string[];
+            /** @description Hồ sơ khác (tùy chọn): tối đa 2 tệp, mỗi tệp một phần form cùng tên otherDocuments, gửi cùng đơn. pdf, jpg hoặc png nhận theo nội dung tệp, không theo đuôi tên; mỗi tệp tối đa 10485760 byte (10 MB). Cả đơn tối đa 3 tệp. Tệp sai định dạng: invalid_format tại /body/<trường>/<thứ tự>; tệp quá lớn: too_big tại /body/<trường>/<thứ tự>; quá số tệp: too_big tại /body/<trường> */
+            otherDocuments?: string[];
             /**
-             * Format: uuid
-             * @description Ảnh CCCD: id của đúng một file (pdf, jpg, png; tối đa 10 MB), lấy từ POST /api/partner-applications/attachments
-             */
-            citizenIdImage: string;
-            /**
-             * @description Hồ sơ khác (tùy chọn): id của tối đa 2 file (pdf, jpg, png; tối đa 10 MB mỗi file). Cả đơn tối đa 3 file, mỗi file chỉ dùng một lần.
-             * @default []
-             */
-            otherDocuments: string[];
-            /**
-             * @description Chọn "chỉ bán hàng": không cần khai báo nghệ sĩ dự kiến. Mặc định false.
+             * @description Chọn "chỉ bán hàng" ("true"/"false"): không cần khai báo nghệ sĩ dự kiến. Mặc định "false".
              * @default false
+             * @enum {string}
              */
-            salesOnly: boolean;
-            /** @description Tên nghệ sĩ dự kiến, 20 mục tối đa, mỗi tên 1–255 ký tự. Bắt buộc ít nhất một khi salesOnly là false. */
+            salesOnly: "true" | "false";
+            /** @description Tên nghệ sĩ dự kiến, mỗi tên một phần form cùng tên declaredArtists; 20 mục tối đa, mỗi tên 1–255 ký tự. Bắt buộc ít nhất một khi salesOnly là false. */
             declaredArtists?: string[];
         };
         IndividualPartnerApplication: {
@@ -228,7 +182,7 @@ export interface components {
             detail?: string;
             /** @description Request path that produced the error */
             instance: string;
-            /** @description Per-input errors when `code` is VALIDATION_FAILED */
+            /** @description Per-input errors: every invalid input when `code` is VALIDATION_FAILED; the inputs a business error is about for the codes that name them */
             errors?: components["schemas"]["FieldError"][];
         };
         FieldError: {
@@ -238,7 +192,7 @@ export interface components {
              */
             pointer: string;
             /**
-             * @description Machine-readable reason (schema issue code such as `too_small`, `invalid_format`)
+             * @description Machine-readable reason: a schema issue code such as `too_small`, `invalid_format`; for a business error, the reason its route documents (`infected`)
              * @example invalid_format
              */
             code: string;
@@ -282,62 +236,6 @@ export interface operations {
             };
         };
     };
-    PartnerApplications_uploadAttachment: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["AttachmentUploadRequest"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Attachment"];
-                };
-            };
-            /** @description PAYLOAD_TOO_LARGE */
-            413: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"] & {
-                        /** @enum {string} */
-                        code: "PAYLOAD_TOO_LARGE";
-                    };
-                };
-            };
-            /** @description PARTNER_APPLICATION_FILE_TYPE_NOT_ALLOWED */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"] & {
-                        /** @enum {string} */
-                        code: "PARTNER_APPLICATION_FILE_TYPE_NOT_ALLOWED";
-                    };
-                };
-            };
-            /** @description Error (Problem Details) */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
     PartnerApplications_submitOrganization: {
         parameters: {
             query?: never;
@@ -347,7 +245,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["OrganizationApplicationCreateRequest"];
+                "multipart/form-data": components["schemas"]["OrganizationApplicationCreateRequest"];
             };
         };
         responses: {
@@ -359,7 +257,7 @@ export interface operations {
                     "application/json": components["schemas"]["PartnerApplication"];
                 };
             };
-            /** @description PARTNER_APPLICATION_BUSINESS_REGISTRATION_INVALID, PARTNER_APPLICATION_OTHER_DOCUMENTS_INVALID */
+            /** @description PARTNER_APPLICATION_FILE_INFECTED */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -367,7 +265,19 @@ export interface operations {
                 content: {
                     "application/problem+json": components["schemas"]["Problem"] & {
                         /** @enum {string} */
-                        code: "PARTNER_APPLICATION_BUSINESS_REGISTRATION_INVALID" | "PARTNER_APPLICATION_OTHER_DOCUMENTS_INVALID";
+                        code: "PARTNER_APPLICATION_FILE_INFECTED";
+                    };
+                };
+            };
+            /** @description PARTNER_APPLICATION_FILE_SCAN_UNAVAILABLE */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"] & {
+                        /** @enum {string} */
+                        code: "PARTNER_APPLICATION_FILE_SCAN_UNAVAILABLE";
                     };
                 };
             };
@@ -391,7 +301,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["IndividualApplicationCreateRequest"];
+                "multipart/form-data": components["schemas"]["IndividualApplicationCreateRequest"];
             };
         };
         responses: {
@@ -403,7 +313,7 @@ export interface operations {
                     "application/json": components["schemas"]["IndividualPartnerApplication"];
                 };
             };
-            /** @description PARTNER_APPLICATION_CITIZEN_ID_IMAGE_INVALID, PARTNER_APPLICATION_OTHER_DOCUMENTS_INVALID */
+            /** @description PARTNER_APPLICATION_FILE_INFECTED */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -411,7 +321,19 @@ export interface operations {
                 content: {
                     "application/problem+json": components["schemas"]["Problem"] & {
                         /** @enum {string} */
-                        code: "PARTNER_APPLICATION_CITIZEN_ID_IMAGE_INVALID" | "PARTNER_APPLICATION_OTHER_DOCUMENTS_INVALID";
+                        code: "PARTNER_APPLICATION_FILE_INFECTED";
+                    };
+                };
+            };
+            /** @description PARTNER_APPLICATION_FILE_SCAN_UNAVAILABLE */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"] & {
+                        /** @enum {string} */
+                        code: "PARTNER_APPLICATION_FILE_SCAN_UNAVAILABLE";
                     };
                 };
             };

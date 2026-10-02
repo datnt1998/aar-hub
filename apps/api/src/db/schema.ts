@@ -97,7 +97,11 @@ export const partnerApplications = pgTable(
   ],
 );
 
-/** Uploaded file. Starts unattached (upload step) and is attached to an application when it is submitted. */
+/**
+ * File of an application, stored only when the application is accepted, in the same transaction
+ * (BR-PARTNER-ONBOARDING-035). Every stored file was scanned clean. `kind` is the input the applicant used, not a
+ * classification by the system.
+ */
 export const attachments = pgTable(
   'attachments',
   {
@@ -106,8 +110,10 @@ export const attachments = pgTable(
     contentType: text('content_type').notNull(),
     sizeBytes: integer('size_bytes').notNull(),
     content: bytea('content').notNull(),
-    applicationId: uuid('application_id').references(() => partnerApplications.id),
-    kind: text('kind').$type<AttachmentKind>(),
+    applicationId: uuid('application_id')
+      .notNull()
+      .references(() => partnerApplications.id),
+    kind: text('kind').$type<AttachmentKind>().notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('attachments_application_id_idx').on(t.applicationId)],
