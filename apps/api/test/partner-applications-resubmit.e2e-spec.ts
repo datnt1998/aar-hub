@@ -128,7 +128,9 @@ describe('partner applications: resubmitting within 1 minute', () => {
     expect(await t.db.select().from(notifications)).toEqual(notificationsAfterFirst);
   });
 
-  it('AC-PARTNER-ONBOARDING-26-04 the same organization application 2 minutes later is a new SUBMITTED application, announced to admins and sharing its tax code with the earlier open one', async () => {
+  // The duplicate warning to admins that AC-PARTNER-ONBOARDING-26-04 also asks for has no defined channel or content
+  // yet (open question to docs), so this test covers the rest of that AC and does not carry its code.
+  it('the same organization application 2 minutes later is a new SUBMITTED application, announced to admins like any other', async () => {
     const [admin] = await t.db
       .insert(accounts)
       .values({ email: 'admin@aar.vn', isPlatformAdmin: true })
@@ -147,8 +149,7 @@ describe('partner applications: resubmitting within 1 minute', () => {
     const submitted = await submittedApplications();
     expect(submitted.map((row) => row.id).sort()).toEqual([first.id, second.id].sort());
     expect(submitted.map((row) => row.taxCode)).toEqual(['0312345678', '0312345678']);
-    // The admin is told about the new application like any other; the duplicate tax code warning (BR-PARTNER-ONBOARDING
-    // -019) is drawn from these two open applications where admins review applications.
+    // The admin gets the usual new-application notification for the second application, nothing more.
     const forAdmin = (await t.db.select().from(notifications)).filter((row) => row.applicationId === second.id);
     expect(forAdmin.map((row) => [row.accountId, row.kind])).toEqual([[admin?.id, 'APPLICATION_NEW_FOR_ADMIN']]);
     expect((await confirmationEmails()).map((email) => email.applicationId).sort()).toEqual(
