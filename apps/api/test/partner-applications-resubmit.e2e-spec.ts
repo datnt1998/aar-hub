@@ -170,23 +170,35 @@ describe('partner applications: resubmitting within 1 minute', () => {
   });
 
   it('AC-PARTNER-ONBOARDING-26-06 two identical organization applications arriving together, the second before the first is stored, make one application and one confirmation email', async () => {
-    clamd.mode = 'hold';
-    const first = Promise.resolve(submitOrganization());
-    await vi.waitFor(() => expect(clamd.scanned).toHaveLength(1));
-    const second = Promise.resolve(submitOrganization());
-    // The second submission is being scanned too: it found no stored application while the first was in progress.
-    await vi.waitFor(() => expect(clamd.scanned).toHaveLength(2));
-    clamd.release();
+    const server = t.app.getHttpServer();
+    let arrived = 0;
+    const countRequest = () => {
+      arrived += 1;
+    };
+    server.on('request', countRequest);
+    try {
+      clamd.mode = 'hold';
+      const first = Promise.resolve(submitOrganization());
+      await vi.waitFor(() => expect(clamd.scanned).toHaveLength(1));
+      const second = Promise.resolve(submitOrganization());
+      await vi.waitFor(() => expect(arrived).toBe(2));
+      // From here a scan of the second submission would fail: it must take the first one's outcome instead.
+      clamd.mode = 'error';
+      clamd.release();
 
-    const [firstBody, secondBody] = await Promise.all([accepted(first), accepted(second)]);
+      const [firstBody, secondBody] = await Promise.all([accepted(first), accepted(second)]);
 
-    const application = PartnerApplicationSchema.parse(firstBody);
-    expect(PartnerApplicationSchema.parse(secondBody)).toEqual(application);
-    expect(application.status).toBe('SUBMITTED');
-    expect((await submittedApplications()).map((row) => row.id)).toEqual([application.id]);
-    expect((await confirmationEmails()).map((email) => [email.toEmail, email.applicationId])).toEqual([
-      ['b@y.com', application.id],
-    ]);
+      const application = PartnerApplicationSchema.parse(firstBody);
+      expect(PartnerApplicationSchema.parse(secondBody)).toEqual(application);
+      expect(application.status).toBe('SUBMITTED');
+      expect(clamd.scanned).toHaveLength(1);
+      expect((await submittedApplications()).map((row) => row.id)).toEqual([application.id]);
+      expect((await confirmationEmails()).map((email) => [email.toEmail, email.applicationId])).toEqual([
+        ['b@y.com', application.id],
+      ]);
+    } finally {
+      server.off('request', countRequest);
+    }
   });
 
   it('AC-PARTNER-ONBOARDING-26-07 the same tax code and email with another legal name 20 seconds later is a repeat that keeps the first legal name', async () => {

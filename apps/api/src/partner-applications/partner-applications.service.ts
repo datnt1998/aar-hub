@@ -69,55 +69,48 @@ export class PartnerApplicationsService {
   /**
    * Stores the application in SUBMITTED with its files and queues its notifications, or stores nothing.
    * Files arrive with the application, already checked for count, type and size; each is scanned for malware before
-   * anything is stored, and one infected or unscanned file refuses the whole application (BR-PARTNER-ONBOARDING-035,
+   * anything is kept, and one infected or unscanned file refuses the whole application (BR-PARTNER-ONBOARDING-035,
    * -038). The confirmation email goes to the contact email in the application; the applicant gets no in-app
    * notification. Every platform admin gets an email and an in-app notification.
    *
    * A submission identical to an application accepted at most 1 minute earlier repeats it (BR-PARTNER-ONBOARDING-042):
-   * nothing is scanned, stored or sent, and the submitter is shown that earlier application. The check before scanning
-   * spares the scan; the claim in the transaction decides when an identical submission is being accepted meanwhile.
+   * nothing is scanned, kept or sent, and the submitter is shown that earlier application. The submission claims its
+   * key before scanning, so an identical one arriving meanwhile waits for this one's outcome: it repeats this
+   * application once accepted, or is handled on its own when this one is refused. The price is a transaction open for
+   * the scan, which only identical submissions wait on.
    */
   private async submit<T extends NewApplication>(application: T, files: SubmittedFile[]): Promise<Submitted<T>> {
-    const key = submissionKey(application);
-    const earlier = await this.repository.findRecentSubmission(
-      key,
-      new Date(this.clock.now().getTime() - RESUBMIT_WINDOW_MS),
-    );
-    if (earlier) {
-      return this.repeat(application, earlier);
-    }
-
-    const verdicts = await Promise.all(files.map((file) => this.scanner.scan(file.content)));
-    const refused = files.flatMap((file, index) => {
-      const verdict = verdicts[index];
-      if (verdict === 'infected') {
-        return [{ pointer: file.pointer, code: 'infected', detail: 'The file is infected with malware' }];
-      }
-      if (verdict !== 'clean') {
-        return [{ pointer: file.pointer, code: 'not_scanned', detail: 'The file could not be scanned' }];
-      }
-      return [];
-    });
-    if (verdicts.includes('infected')) {
-      throw new FileInfectedError(refused);
-    }
-    if (refused.length > 0) {
-      throw new FileScanUnavailableError(refused);
-    }
-
     const now = this.clock.now();
     try {
       return await this.repository.transaction(async (tx) => {
         const { id, submittedAt } = await this.repository.insertApplication(tx, application, now);
         const holder = await this.repository.claimSubmission(
           tx,
-          key,
+          submissionKey(application),
           id,
           now,
           new Date(now.getTime() - RESUBMIT_WINDOW_MS),
         );
         if (holder !== id) {
           throw new AcceptedMeanwhile(holder);
+        }
+
+        const verdicts = await Promise.all(files.map((file) => this.scanner.scan(file.content)));
+        const refused = files.flatMap((file, index) => {
+          const verdict = verdicts[index];
+          if (verdict === 'infected') {
+            return [{ pointer: file.pointer, code: 'infected', detail: 'The file is infected with malware' }];
+          }
+          if (verdict !== 'clean') {
+            return [{ pointer: file.pointer, code: 'not_scanned', detail: 'The file could not be scanned' }];
+          }
+          return [];
+        });
+        if (verdicts.includes('infected')) {
+          throw new FileInfectedError(refused);
+        }
+        if (refused.length > 0) {
+          throw new FileScanUnavailableError(refused);
         }
         await this.repository.insertFiles(tx, id, files, now);
 

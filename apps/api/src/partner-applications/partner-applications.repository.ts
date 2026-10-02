@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, gte, lt } from 'drizzle-orm';
+import { and, eq, lt } from 'drizzle-orm';
 import { type AppDb, DB } from '../db/db.js';
 import {
   accounts,
@@ -67,22 +67,6 @@ export class PartnerApplicationsRepository {
       throw new Error('insert into partner_applications returned no row');
     }
     return row;
-  }
-
-  /** The application accepted for this key at or after `since`, if any. */
-  async findRecentSubmission(key: SubmissionKey, since: Date): Promise<string | undefined> {
-    const [row] = await this.db
-      .select({ applicationId: applicationSubmissions.applicationId })
-      .from(applicationSubmissions)
-      .where(
-        and(
-          eq(applicationSubmissions.legalForm, key.legalForm),
-          eq(applicationSubmissions.legalId, key.legalId),
-          eq(applicationSubmissions.contactEmail, key.contactEmail),
-          gte(applicationSubmissions.acceptedAt, since),
-        ),
-      );
-    return row?.applicationId;
   }
 
   /**

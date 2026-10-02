@@ -33,7 +33,7 @@ const submitDescription = (duplicate: string, fileHandling: string, accepted: st
   fileHandling +
   `Thành công: ${accepted}; email xác nhận gửi tới email liên hệ trong đơn, người nộp đơn không nhận thông báo trong AarHub; mọi admin nền tảng nhận email và thông báo trong AarHub. ` +
   `Gửi lặp: đơn hợp lệ cùng hình thức, cùng ${duplicate} và cùng email liên hệ (không phân biệt hoa thường) với một đơn đã được nhận trong vòng ${RESUBMIT_WINDOW_MS / 1000} giây trước đó, các trường khác không được so. ` +
-  'Lần gửi lặp không tạo đơn, không lưu tệp, không gửi email hay thông báo nào, và trả 201 với đúng đơn đã nhận trước đó như lần gửi đầu (cùng id, submittedAt, status SUBMITTED và các trường của lần gửi đầu); hai lần gửi tới cùng lúc cũng chỉ tạo một đơn. ' +
+  'Lần gửi lặp không tạo đơn, không quét hay lưu tệp, không gửi email hay thông báo nào, và trả 201 với đúng đơn đã nhận trước đó như lần gửi đầu (cùng id, submittedAt, status SUBMITTED và các trường của lần gửi đầu); lần gửi giống hệt tới khi lần đầu chưa xong thì chờ kết quả lần đầu: lần đầu được nhận thì trả đơn đó, lần đầu bị từ chối thì được xử lý như một lần gửi riêng. ' +
   `Quá ${RESUBMIT_WINDOW_MS / 1000} giây là đơn mới. ` +
   `Trùng ${duplicate} với đối tác hoặc đơn đang mở vẫn được nhận và phản hồi không có cảnh báo nào. Lỗi: không có đơn nào được tạo và không tệp nào được lưu. ` +
   `Quá ${FORM_LIMITS.files} tệp hoặc ${FORM_LIMITS.fields} trường chữ: 400 BAD_REQUEST.`;
