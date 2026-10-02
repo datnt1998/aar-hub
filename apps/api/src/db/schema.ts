@@ -33,7 +33,11 @@ export type AttachmentKind = (typeof ATTACHMENT_KINDS)[number];
 export const NOTIFICATION_KINDS = ['APPLICATION_RECEIVED', 'APPLICATION_NEW_FOR_ADMIN'] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
-/** AarHub account. Owned by the account/auth work; here only what notifications need: who exists and who is a platform admin. */
+/**
+ * AarHub account. Platform admin accounts belong to the shared login ticket (Q-PARTNER-ONBOARDING-144), not to BE-01.
+ * This table is only the stand-in BE-01 reads so admins can be notified: who exists and who is a platform admin.
+ * The login ticket replaces it; only PartnerApplicationsRepository.findPlatformAdmins reads it.
+ */
 export const accounts = pgTable(
   'accounts',
   {
@@ -112,7 +116,8 @@ export const notifications = pgTable(
 
 /**
  * Emails waiting to be sent. Rows are written in the same transaction as the business change;
- * a mail sender (not chosen yet) delivers rows with `sentAt` null.
+ * a mail sender delivers rows with `sentAt` null. BE-01 only queues; real sending is a separate infrastructure
+ * ticket (Q-PARTNER-ONBOARDING-143).
  */
 export const emailOutbox = pgTable('email_outbox', {
   id: uuid('id').primaryKey().defaultRandom(),
