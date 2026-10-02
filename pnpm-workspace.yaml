@@ -1,2 +1,11 @@
 packages:
   - apps/*
+
+engineStrict: true
+minimumReleaseAge: 1440
+strictDepBuilds: true
+verifyDepsBeforeRun: install
+
+# Postinstall telemetry pulled in by @nestjs/swagger; never needed.
+ignoredBuiltDependencies:
+  - '@scarf/scarf'

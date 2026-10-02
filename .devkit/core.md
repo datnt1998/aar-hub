@@ -39,7 +39,7 @@ Không commit `.omp/`, `.agentkit/` hay khối `AGENTKIT` trong `AGENTS.md` (`pn
 
 ## Cấu trúc
 
-Monorepo pnpm workspace + Turborepo (`turbo.json`), Node ≥ 22, pnpm 10.
+Monorepo pnpm workspace + Turborepo (`turbo.json`), Node 22 (`.nvmrc`), pnpm 10. Công cụ kiểm cấp repo và lý do: [ADR 0002](decisions/0002-cong-cu-kiem-cap-repo.md).
 
 | Đường dẫn | Nội dung |
 |---|---|
@@ -56,8 +56,10 @@ Chạy ở gốc repo. Lệnh qua `turbo` có cache; bỏ cache bằng `--force`
 
 | Việc | Lệnh |
 |---|---|
-| Cài | `pnpm install` (CI: `pnpm install --frozen-lockfile`) |
-| Lint (gồm `devkit:check`) | `pnpm lint` |
+| Cài | `pnpm install` (CI: `pnpm install --frozen-lockfile`). Dependency có build script phải khai trong `pnpm-workspace.yaml` (`onlyBuiltDependencies` / `ignoredBuiltDependencies`) |
+| Kiểm toàn bộ (trước khi báo xong) | `pnpm verify` = `format:check`, `lint`, `typecheck`, `test`, `e2e`, `build`, `openapi:check` |
+| Format | `pnpm format` (sửa), `pnpm format:check` (kiểm). Prettier bỏ qua `*.md` và file sinh |
+| Lint (lint có type, gồm `devkit:check`) | `pnpm lint`. Không tắt luật bằng comment để qua lint; luật sai thì đổi cấu hình qua PR |
 | Typecheck | `pnpm typecheck` |
 | Test | `pnpm test` (riêng: `pnpm test:api`, `pnpm test:web`) |
 | E2E | `pnpm e2e` (lần đầu: `pnpm --filter web exec playwright install chromium`). Tự bật API cổng 3000 và web cổng 5173; cổng bận (worktree khác đang chạy) thì đổi: `E2E_API_PORT=3100 E2E_WEB_PORT=5273 pnpm e2e` |
@@ -70,7 +72,7 @@ Chạy ở gốc repo. Lệnh qua `turbo` có cache; bỏ cache bằng `--force`
 
 ## Xong là khi
 
-- Lệnh kiểm xanh: `pnpm lint && pnpm typecheck && pnpm test && pnpm e2e && pnpm build && pnpm openapi:check`.
+- `pnpm verify` xanh.
 - Mỗi AC trong phạm vi có test mang mã AC ([.devkit/rules/testing.md](rules/testing.md)).
 - Ticket BE đổi API đã chạy `pnpm openapi` và commit cả hai file sinh ra.
 - Review độc lập xong, lỗi chặn đã sửa ([.devkit/workflows/review.md](workflows/review.md)).

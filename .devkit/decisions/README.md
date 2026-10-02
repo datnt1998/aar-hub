@@ -15,6 +15,7 @@ Agent không tự chấp nhận ADR: soạn ADR ở trạng thái `Đề xuất`
 | Số | Quyết định | Trạng thái |
 |---|---|---|
 | [0001](0001-devkit-va-cong-cu-phu-tro.md) | `.devkit/` là bộ luật duy nhất; AgentKit chỉ là công cụ phụ trợ, không commit | Chấp nhận |
+| [0002](0002-cong-cu-kiem-cap-repo.md) | Bộ kiểm cấp repo: Prettier, lint có type, ghim Node/pnpm, Renovate, squash-only | Chấp nhận |
 
 ## Mẫu
 

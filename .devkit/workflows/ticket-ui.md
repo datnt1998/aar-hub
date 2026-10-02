@@ -7,7 +7,7 @@
 3. **Làm tiếp ticket đã có branch/PR:** đọc `git log origin/main..HEAD` và PR hiện tại (`gh pr view`) trước, chỉ làm phần còn thiếu.
 4. **Code** màn hình theo [.devkit/rules/web.md](../rules/web.md), gọi API chỉ qua `api`.
 5. **Test** từng AC: component test cho trạng thái và luồng của màn hình, e2e Playwright cho luồng chính qua API thật ([.devkit/rules/testing.md](../rules/testing.md)). Kiểm `pnpm ac` thấy đủ mã.
-6. **Kiểm.** `pnpm lint && pnpm typecheck && pnpm test && pnpm e2e && pnpm build && pnpm openapi:check` xanh.
+6. **Kiểm.** `pnpm verify` xanh.
 7. **Review độc lập** theo [.devkit/workflows/review.md](review.md). Sửa lỗi chặn, chạy lại bước 6.
 8. **Commit, push, PR** theo [.devkit/rules/git.md](../rules/git.md).
 9. **Báo kết quả.** Khi Ops gọi: ghi result theo [.devkit/workflows/ops-session.md](ops-session.md). Khi chat: báo người link PR, AC → test, câu hỏi còn mở.
