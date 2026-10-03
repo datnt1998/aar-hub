@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { citizenId, email, taxCode, text } from '../common/fields.js';
 import { APPLICATION_STATUSES, LEGAL_FORMS } from '../db/schema.js';
 import {
   type AcceptedFile,
@@ -10,45 +11,6 @@ import {
   MAX_FILES,
   MAX_FILES_PER_APPLICATION,
 } from './partner-applications.js';
-
-/** Length in Unicode characters of an already trimmed, NFC-normalised string. */
-const characters = (value: string): number => [...value].length;
-
-/**
- * FD-EMAIL with DEC-PARTNER-ONBOARDING-015: exactly one @, at least one character before it, a dot after it that is
- * neither the first nor the last character of the part after @, no whitespace. Matching is case-insensitive, so the
- * value is kept as typed.
- */
-const EMAIL_SHAPE = /^[^@\s]+@(?=[^@\s]*\.)[^.@\s][^@\s]*[^.@\s]$/;
-
-/** Exactly 10 or 13 digits, no hyphen, no space (FD-TAX-CODE). */
-const TAX_CODE_SHAPE = /^(?:[0-9]{10}|[0-9]{13})$/;
-
-/** Exactly 12 ASCII digits (FD-CITIZEN-ID). */
-const CITIZEN_ID_SHAPE = /^[0-9]{12}$/;
-
-/**
- * Text input of the ticket: surrounding whitespace is dropped, the rest is Unicode NFC, and the length is counted in
- * characters between `min` and `max`. `shape` adds a format rule.
- */
-function text(min: number, max: number, shape?: { pattern: RegExp; format: string }) {
-  return z
-    .string()
-    .transform((value) => value.trim().normalize('NFC'))
-    .pipe(
-      z.string().check((ctx) => {
-        const length = characters(ctx.value);
-        if (length < min) {
-          ctx.issues.push({ code: 'too_small', origin: 'string', minimum: min, inclusive: true, input: ctx.value });
-        } else if (length > max) {
-          ctx.issues.push({ code: 'too_big', origin: 'string', maximum: max, inclusive: true, input: ctx.value });
-        } else if (shape && !shape.pattern.test(ctx.value)) {
-          ctx.issues.push({ code: 'invalid_format', format: shape.format, input: ctx.value });
-        }
-      }),
-    )
-    .meta({ minLength: min, maxLength: max });
-}
 
 const personName = () => text(1, 255);
 
@@ -147,8 +109,7 @@ const FILE_RULES = `pdf, jpg hoặc png nhận theo nội dung tệp, không the
 /** Who applies, the same for every legal form (BE-01, BE-14). */
 const applicantContact = () => ({
   applicantName: personName().meta({ description: 'Họ tên người nộp đơn, 1–255 ký tự, không chỉ gồm khoảng trắng' }),
-  contactEmail: text(1, 254, { pattern: EMAIL_SHAPE, format: 'email' }).meta({
-    format: 'email',
+  contactEmail: email().meta({
     description:
       'Email liên hệ, tối đa 254 ký tự. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu. Đúng một dấu @, có ít nhất một ký tự trước @, phần sau @ có dấu chấm nhưng không bắt đầu và không kết thúc bằng dấu chấm, không có khoảng trắng; so khớp không phân biệt hoa thường',
   }),
@@ -213,9 +174,7 @@ export const OrganizationApplicationCreateSchema = z
     }),
     ...applicantContact(),
     legalName: text(1, 255).meta({ description: 'Tên pháp nhân, 1–255 ký tự, không chỉ gồm khoảng trắng' }),
-    taxCode: text(1, 13, { pattern: TAX_CODE_SHAPE, format: 'regex' }).meta({
-      minLength: 10,
-      pattern: '^([0-9]{10}|[0-9]{13})$',
+    taxCode: taxCode().meta({
       description:
         'Mã số thuế: đúng 10 hoặc 13 chữ số, không gạch nối, không dấu cách ở giữa. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu',
     }),
@@ -239,8 +198,7 @@ export const IndividualApplicationCreateSchema = z
     legalName: text(1, 255).meta({
       description: 'Họ tên pháp nhân cá nhân, 1–255 ký tự, không chỉ gồm khoảng trắng',
     }),
-    citizenId: text(12, 12, { pattern: CITIZEN_ID_SHAPE, format: 'regex' }).meta({
-      pattern: '^[0-9]{12}$',
+    citizenId: citizenId().meta({
       description:
         'Số CCCD: đúng 12 chữ số, chỉ gồm chữ số. Khoảng trắng hai đầu được bỏ trước khi kiểm và không được lưu. Trùng với đối tác hay đơn đang mở vẫn được nhận; cảnh báo trùng chỉ dành cho admin. Bỏ trống: invalid_type; rỗng hoặc dưới 12 ký tự: too_small; quá 12 ký tự: too_big; đủ 12 ký tự nhưng có ký tự khác chữ số: invalid_format',
     }),

@@ -8,6 +8,7 @@ import { envSchema } from './config/env.js';
 import { DbModule } from './db/db.module.js';
 import { HealthModule } from './health/health.module.js';
 import { PartnerApplicationsModule } from './partner-applications/partner-applications.module.js';
+import { PartnersModule } from './partners/partners.module.js';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { PartnerApplicationsModule } from './partner-applications/partner-applic
     DbModule,
     HealthModule,
     PartnerApplicationsModule,
+    PartnersModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: ProblemFilter },

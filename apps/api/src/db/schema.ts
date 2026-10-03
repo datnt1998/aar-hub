@@ -22,9 +22,20 @@ const bytea = customType<{ data: Buffer; driverData: Buffer }>({
 export const LEGAL_FORMS = ['tổ chức', 'cá nhân'] as const;
 export type LegalForm = (typeof LEGAL_FORMS)[number];
 
-/** Statuses an application can be in. Other tickets own the transitions after SUBMITTED. */
-export const APPLICATION_STATUSES = ['SUBMITTED', 'UNDER_REVIEW', 'NEEDS_INFO'] as const;
+/** Statuses of an application (ENT-PARTNER-APPLICATION). Other tickets own the transitions after SUBMITTED. */
+export const APPLICATION_STATUSES = ['SUBMITTED', 'UNDER_REVIEW', 'NEEDS_INFO', 'APPROVED', 'REJECTED'] as const;
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
+
+/** Applications still waiting for a decision: "đơn đang mở" in BR-PARTNER-ONBOARDING-019. */
+export const OPEN_APPLICATION_STATUSES = [
+  'SUBMITTED',
+  'UNDER_REVIEW',
+  'NEEDS_INFO',
+] as const satisfies readonly ApplicationStatus[];
+
+/** Statuses of a partner (ENT-PARTNER), set by the system. */
+export const PARTNER_STATUSES = ['PENDING_ACTIVATION', 'ACTIVE', 'SUSPENDED', 'TERMINATED'] as const;
+export type PartnerStatus = (typeof PARTNER_STATUSES)[number];
 
 export const ATTACHMENT_KINDS = ['BUSINESS_REGISTRATION', 'OTHER'] as const;
 export type AttachmentKind = (typeof ATTACHMENT_KINDS)[number];
@@ -50,10 +61,10 @@ export const accounts = pgTable(
 );
 
 /**
- * Partner (ENT-PARTNER). Owned by the partner tickets: the columns and the values of `status` are theirs to define.
- * BE-01 and BE-14 never read or write this table (a duplicate tax code or citizen ID is accepted silently); it exists
- * only so AC-01-11 and AC-14-01 can hold an existing partner in a test. `status` is free text for that reason, not a
- * list of known states. An organization partner has a tax code, an individual one a citizen ID.
+ * Partner (ENT-PARTNER). An organization partner has a tax code, an individual one a citizen ID (BR-PARTNER-ONBOARDING-008).
+ * BE-15 reads it to warn about a duplicate legal entity and sets the values of `status`; creating partners belongs to
+ * BE-04, which adds the columns it stores. BE-01 and BE-14 never read or write this table (a duplicate tax code or
+ * citizen ID is accepted silently); AC-01-11 and AC-14-01 only hold an existing partner in it in a test.
  */
 export const partners = pgTable(
   'partners',
@@ -62,7 +73,7 @@ export const partners = pgTable(
     legalName: text('legal_name').notNull(),
     taxCode: text('tax_code'),
     citizenId: text('citizen_id'),
-    status: text('status').notNull(),
+    status: text('status').$type<PartnerStatus>().notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('partners_tax_code_idx').on(t.taxCode), index('partners_citizen_id_idx').on(t.citizenId)],
