@@ -41,7 +41,7 @@ const draftFields = {
   }),
   contractDate: z.iso.date().meta({
     description:
-      'Ngày hợp đồng hợp tác, dạng YYYY-MM-DD, không muộn hơn hôm nay theo giờ Việt Nam (muộn hơn: lỗi 422 PARTNER_CONTRACT_DATE_IN_FUTURE)',
+      'Ngày hợp đồng hợp tác, dạng YYYY-MM-DD, không muộn hơn hôm nay theo giờ Việt Nam (muộn hơn: lỗi 422 PARTNER_CONTRACT_DATE_IN_FUTURE, errors[] chỉ /body/contractDate với code in_future)',
   }),
   invitedEmail: email().meta({
     description: `Email người nhận lời mời Owner, tối đa 254 ký tự. ${TRIMMED}. Đúng một dấu @, có ít nhất một ký tự trước @, phần sau @ có dấu chấm nhưng không bắt đầu và không kết thúc bằng dấu chấm, không có khoảng trắng; so khớp không phân biệt hoa thường`,

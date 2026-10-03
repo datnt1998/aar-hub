@@ -387,7 +387,10 @@ describe('preparing a direct partner creation', () => {
       for (const form of ['tổ chức', 'cá nhân'] as const) {
         const tomorrow = await checkDraft(draftOf(form, 'contractDate', '2026-10-03'));
         expect(tomorrow.status).toBe(422);
-        expect(tomorrow.body.code).toBe('PARTNER_CONTRACT_DATE_IN_FUTURE');
+        expect(tomorrow.body).toMatchObject({
+          code: 'PARTNER_CONTRACT_DATE_IN_FUTURE',
+          errors: [{ pointer: '/body/contractDate', code: 'in_future' }],
+        });
         expect(await refused('contractDate', undefined, form)).toBe('invalid_type');
       }
       for (const bad of [

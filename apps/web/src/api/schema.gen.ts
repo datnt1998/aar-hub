@@ -268,7 +268,7 @@ export interface components {
             contractNumber: string;
             /**
              * Format: date
-             * @description Ngày hợp đồng hợp tác, dạng YYYY-MM-DD, không muộn hơn hôm nay theo giờ Việt Nam (muộn hơn: lỗi 422 PARTNER_CONTRACT_DATE_IN_FUTURE)
+             * @description Ngày hợp đồng hợp tác, dạng YYYY-MM-DD, không muộn hơn hôm nay theo giờ Việt Nam (muộn hơn: lỗi 422 PARTNER_CONTRACT_DATE_IN_FUTURE, errors[] chỉ /body/contractDate với code in_future)
              */
             contractDate: string;
             /**
@@ -291,7 +291,7 @@ export interface components {
             contractNumber: string;
             /**
              * Format: date
-             * @description Ngày hợp đồng hợp tác, dạng YYYY-MM-DD, không muộn hơn hôm nay theo giờ Việt Nam (muộn hơn: lỗi 422 PARTNER_CONTRACT_DATE_IN_FUTURE)
+             * @description Ngày hợp đồng hợp tác, dạng YYYY-MM-DD, không muộn hơn hôm nay theo giờ Việt Nam (muộn hơn: lỗi 422 PARTNER_CONTRACT_DATE_IN_FUTURE, errors[] chỉ /body/contractDate với code in_future)
              */
             contractDate: string;
             /**
