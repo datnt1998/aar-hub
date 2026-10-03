@@ -1,5 +1,5 @@
 {
-  "id": "a10dad58-e26a-44bf-bb2a-4d8bc1d3eb4f",
+  "id": "3f4387e0-a740-41a6-9f62-f9ef14017386",
   "prevId": "cc90f2f3-90d2-4035-8999-ba3a8cf557cd",
   "version": "7",
   "dialect": "postgresql",
@@ -42,15 +42,15 @@
           "columns": [
             {
               "expression": "lower(\"email\")",
-              "asc": true,
               "isExpression": true,
+              "asc": true,
               "nulls": "last"
             }
           ],
           "isUnique": true,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {},
@@ -127,24 +127,24 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "attachments_application_id_partner_applications_id_fk": {
           "name": "attachments_application_id_partner_applications_id_fk",
           "tableFrom": "attachments",
-          "tableTo": "partner_applications",
           "columnsFrom": [
             "application_id"
           ],
+          "tableTo": "partner_applications",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -213,15 +213,15 @@
         "email_outbox_application_id_partner_applications_id_fk": {
           "name": "email_outbox_application_id_partner_applications_id_fk",
           "tableFrom": "email_outbox",
-          "tableTo": "partner_applications",
           "columnsFrom": [
             "application_id"
           ],
+          "tableTo": "partner_applications",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -291,37 +291,37 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "notifications_account_id_accounts_id_fk": {
           "name": "notifications_account_id_accounts_id_fk",
           "tableFrom": "notifications",
-          "tableTo": "accounts",
           "columnsFrom": [
             "account_id"
           ],
+          "tableTo": "accounts",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "notifications_application_id_partner_applications_id_fk": {
           "name": "notifications_application_id_partner_applications_id_fk",
           "tableFrom": "notifications",
-          "tableTo": "partner_applications",
           "columnsFrom": [
             "application_id"
           ],
+          "tableTo": "partner_applications",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -377,12 +377,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "citizen_id": {
-          "name": "citizen_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "sales_only": {
           "name": "sales_only",
           "type": "boolean",
@@ -416,24 +410,9 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
-        },
-        "partner_applications_citizen_id_idx": {
-          "name": "partner_applications_citizen_id_idx",
-          "columns": [
-            {
-              "expression": "citizen_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {},
@@ -464,13 +443,7 @@
           "name": "tax_code",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
-        },
-        "citizen_id": {
-          "name": "citizen_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "status": {
           "name": "status",
@@ -498,24 +471,9 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
-        },
-        "partners_citizen_id_idx": {
-          "name": "partners_citizen_id_idx",
-          "columns": [
-            {
-              "expression": "citizen_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {},
@@ -528,10 +486,10 @@
   },
   "enums": {},
   "schemas": {},
+  "views": {},
   "sequences": {},
   "roles": {},
   "policies": {},
-  "views": {},
   "_meta": {
     "columns": {},
     "schemas": {},

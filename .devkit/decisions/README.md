@@ -20,6 +20,7 @@ Agent không tự chấp nhận ADR: soạn ADR ở trạng thái `Đề xuất`
 | [0004](0004-hop-dong-http-cua-api.md) | Hợp đồng HTTP của API: Zod, Problem Details có `code`, response lọc theo schema | Chấp nhận |
 | [0005](0005-nen-tang-web.md) | Nền tảng web: TanStack Router + Query, react-hook-form, MSW có type | Chấp nhận |
 | [0006](0006-bang-accounts-tam-cua-be-01.md) | Bảng `accounts` là bản tạm của BE-01; ticket đăng nhập tiếp quản | Đề xuất |
+| [0007](0007-quet-ma-doc-bang-clamav.md) | Quét mã độc tệp đính kèm bằng ClamAV (clamd) qua TCP; lỗi nghiệp vụ chỉ input và có 503 | Đề xuất |
 
 ## Mẫu
 

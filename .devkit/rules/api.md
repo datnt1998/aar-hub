@@ -50,7 +50,9 @@ test/<feature>.e2e-spec.ts    test HTTP theo mã AC
   | `forbidden` | 403 | Người gọi không có quyền làm việc này |
   | `conflict` | 409 | Request hợp lệ nhưng trạng thái hiện tại không cho (hết hạn, đã chấp nhận, đã chấm dứt…) |
   | `unprocessable` | 422 | Input đúng schema nhưng sai luật nghiệp vụ cần thêm dữ liệu để kiểm |
+  | `unavailable` | 503 | Dịch vụ mà luật nghiệp vụ cần không trả lời (máy quét mã độc lỗi, quá giờ); thử lại có thể qua ([ADR 0007](../decisions/0007-quet-ma-doc-bang-clamav.md)) |
 
+- Lỗi nghiệp vụ nói về input cụ thể (tệp nào nhiễm mã độc) truyền `errors` (`FieldError[]`, cùng dạng `VALIDATION_FAILED`) vào `super(message, errors)`; `code` của từng phần tử là lý do route mô tả (`infected`).
 - Input sai schema: 400 `VALIDATION_FAILED`, `errors[]` gồm `pointer` (`/body/email`, `/query/page`, `/path/id`), `code` (mã issue của Zod) và `detail`.
 - Mỗi route khai lỗi nghiệp vụ nó có thể trả bằng `@ApiProblem(409, 'INVITATION_EXPIRED', 'INVITATION_ALREADY_ACCEPTED')`, để client web có `error.code` đúng các mã đó. Xuất OpenAPI tự thêm response `default` là Problem cho mọi route.
 - `detail` tiếng Anh, cho developer. Giao diện dịch `code` sang tiếng Việt; không hiển thị `detail`.

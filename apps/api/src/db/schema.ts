@@ -1,11 +1,13 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  check,
   customType,
   index,
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -16,7 +18,7 @@ const bytea = customType<{ data: Buffer; driverData: Buffer }>({
   dataType: () => 'bytea',
 });
 
-/** Hình thức (legalForm) values as the ticket gives them. Only 'tổ chức' is submitted through this ticket; 'cá nhân' belongs to another use case. */
+/** Hình thức (legalForm) values as the ticket gives them: 'tổ chức' (BE-01) and 'cá nhân' (BE-14). */
 export const LEGAL_FORMS = ['tổ chức', 'cá nhân'] as const;
 export type LegalForm = (typeof LEGAL_FORMS)[number];
 
@@ -59,9 +61,10 @@ export const accounts = pgTable(
 );
 
 /**
- * Partner (ENT-PARTNER). An organization has a tax code, an individual a citizen id (BR-PARTNER-ONBOARDING-008).
- * BE-15 reads it to warn about a duplicate legal entity; creating partners belongs to BE-04, which adds the columns it
- * stores. BE-01 never reads or writes this table (a duplicate tax code is accepted silently).
+ * Partner (ENT-PARTNER). An organization partner has a tax code, an individual one a citizen ID (BR-PARTNER-ONBOARDING-008).
+ * BE-15 reads it to warn about a duplicate legal entity and sets the values of `status`; creating partners belongs to
+ * BE-04, which adds the columns it stores. BE-01 and BE-14 never read or write this table (a duplicate tax code or
+ * citizen ID is accepted silently); AC-01-11 and AC-14-01 only hold an existing partner in it in a test.
  */
 export const partners = pgTable(
   'partners',
@@ -76,7 +79,10 @@ export const partners = pgTable(
   (t) => [index('partners_tax_code_idx').on(t.taxCode), index('partners_citizen_id_idx').on(t.citizenId)],
 );
 
-/** ENT-PARTNER-APPLICATION. */
+/**
+ * ENT-PARTNER-APPLICATION. An organization application ('tổ chức') has a tax code and no citizen ID; an individual
+ * one ('cá nhân') has a citizen ID and no tax code.
+ */
 export const partnerApplications = pgTable(
   'partner_applications',
   {
@@ -86,8 +92,7 @@ export const partnerApplications = pgTable(
     applicantName: text('applicant_name').notNull(),
     contactEmail: text('contact_email').notNull(),
     legalName: text('legal_name').notNull(),
-    taxCode: text('tax_code').notNull(),
-    /** Citizen id of an individual applicant. Only the individual application flow (another ticket) fills it. */
+    taxCode: text('tax_code'),
     citizenId: text('citizen_id'),
     /** "Chỉ bán hàng": no declared artists required. */
     salesOnly: boolean('sales_only').notNull().default(false),
@@ -97,10 +102,38 @@ export const partnerApplications = pgTable(
   (t) => [
     index('partner_applications_tax_code_idx').on(t.taxCode),
     index('partner_applications_citizen_id_idx').on(t.citizenId),
+    check(
+      'partner_applications_legal_id_check',
+      sql`(${t.legalForm} = 'tổ chức' AND ${t.taxCode} IS NOT NULL AND ${t.citizenId} IS NULL) OR (${t.legalForm} = 'cá nhân' AND ${t.citizenId} IS NOT NULL AND ${t.taxCode} IS NULL)`,
+    ),
   ],
 );
 
-/** Uploaded file. Starts unattached (upload step) and is attached to an application when it is submitted. */
+/**
+ * The latest accepted submission of each identity (BR-PARTNER-ONBOARDING-042): legal form, tax code or citizen ID
+ * (`legal_id`), and contact email in lower case. A submission claims the row in the transaction that stores its
+ * application. The primary key makes an identical submission that arrives meanwhile wait for that transaction and then
+ * see the claim; once the row is older than the resubmit window, the next identical submission takes it over.
+ */
+export const applicationSubmissions = pgTable(
+  'application_submissions',
+  {
+    legalForm: text('legal_form').$type<LegalForm>().notNull(),
+    legalId: text('legal_id').notNull(),
+    contactEmail: text('contact_email').notNull(),
+    applicationId: uuid('application_id')
+      .notNull()
+      .references(() => partnerApplications.id),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.legalForm, t.legalId, t.contactEmail] })],
+);
+
+/**
+ * File of an application, stored only when the application is accepted, in the same transaction
+ * (BR-PARTNER-ONBOARDING-035). Every stored file was scanned clean. `kind` is the input the applicant used, not a
+ * classification by the system.
+ */
 export const attachments = pgTable(
   'attachments',
   {
@@ -109,8 +142,10 @@ export const attachments = pgTable(
     contentType: text('content_type').notNull(),
     sizeBytes: integer('size_bytes').notNull(),
     content: bytea('content').notNull(),
-    applicationId: uuid('application_id').references(() => partnerApplications.id),
-    kind: text('kind').$type<AttachmentKind>(),
+    applicationId: uuid('application_id')
+      .notNull()
+      .references(() => partnerApplications.id),
+    kind: text('kind').$type<AttachmentKind>().notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('attachments_application_id_idx').on(t.applicationId)],
